@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw the home-screen icons for an app: a dark board with a row of bulbs.
 
-Usage:  python3 scripts/make-icons.py apps/movies [board-colour] [bulb-colour]
+Usage:  python3 scripts/make-icons.py apps/movies [board-colour] [bulb-colour] [bulbs|bars]
 Needs:  Pillow (pip install pillow). Only needed when you want new icons;
         the generated PNG files are committed to the repository.
 """
@@ -9,6 +9,30 @@ import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
+
+
+def draw_bars(size: int, board: str, colour: str, maskable: bool) -> Image.Image:
+    """Three rising columns, as in a weekly progress chart."""
+    scale = 4
+    s = size * scale
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    if maskable:
+        d.rectangle([0, 0, s, s], fill=board)
+        inset = 0.24
+    else:
+        d.rounded_rectangle([0, 0, s - 1, s - 1], radius=int(s * 0.22), fill=board)
+        inset = 0.18
+    left, right = s * inset, s * (1 - inset)
+    bottom, top = s * (1 - inset), s * inset
+    span = right - left
+    w = span / 3 * 0.62
+    heights = [0.42, 0.68, 1.0]
+    for i, f in enumerate(heights):
+        cx = left + span * (i + 0.5) / 3
+        y0 = bottom - (bottom - top) * f
+        d.rounded_rectangle([cx - w / 2, y0, cx + w / 2, bottom], radius=int(w * 0.28), fill=colour)
+    return img.resize((size, size), Image.LANCZOS)
 
 
 def draw(size: int, board: str, bulb: str, maskable: bool) -> Image.Image:
@@ -49,10 +73,12 @@ def main() -> None:
     out = Path(sys.argv[1]) / "icons"
     board = sys.argv[2] if len(sys.argv) > 2 else "#2a1020"
     bulb = sys.argv[3] if len(sys.argv) > 3 else "#f4c21f"
+    style = sys.argv[4] if len(sys.argv) > 4 else "bulbs"
+    paint = draw_bars if style == "bars" else draw
     out.mkdir(parents=True, exist_ok=True)
-    draw(192, board, bulb, False).save(out / "icon-192.png")
-    draw(512, board, bulb, False).save(out / "icon-512.png")
-    draw(512, board, bulb, True).save(out / "icon-maskable-512.png")
+    paint(192, board, bulb, False).save(out / "icon-192.png")
+    paint(512, board, bulb, False).save(out / "icon-512.png")
+    paint(512, board, bulb, True).save(out / "icon-maskable-512.png")
     print(f"Wrote 3 icons to {out}")
 
 

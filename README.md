@@ -5,8 +5,8 @@ and the PC, and keep their data as plain JSON files in my Google Drive.
 
 - No server and no database. GitHub Pages delivers the code; the browser
   talks directly to Google Drive.
-- No build step and no dependencies. The repository is served exactly as it
-  is, so pushing a change publishes it.
+- No build step and no dependencies. Pushing to `main` runs the tests and
+  publishes the apps (`.github/workflows/deploy.yml`).
 - One shared core (`core/`) and one folder per app (`apps/`). A change to
   the core reaches every app with the same push.
 
@@ -21,10 +21,13 @@ core/                shared by all apps
   auth.js              Google sign-in (access token for drive.file only)
   backend-drive.js     reads and writes the file in Google Drive
   backend-local.js     keeps data in the browser (demo mode, tests)
+  updates.js           version display and "newer version available"
+  version.js           the running version (filled in by the deploy)
   dom.js, util.js      small helpers
   core.css             shared look; apps override the accent colour
 apps/
   movies/              Movies & Series tracker (TMDB search, ratings)
+  habits/              Habits: sets, weekly goals, progress (pull-ups first)
   _template/           starting point for a new app
 scripts/
   serve.mjs            local web server for trying things out
@@ -58,8 +61,9 @@ Until a Google client ID is entered in `site.config.js`, the apps run in
 
 1. Create a **public** repository (free GitHub Pages needs a public one),
    for example `apps`. Push this folder to it.
-2. In the repository: Settings, Pages, "Deploy from a branch", branch
-   `main`, folder `/ (root)`.
+2. In the repository: Settings, Pages, Source: **GitHub Actions**. From
+   then on every push to `main` runs the tests and, if they pass,
+   publishes the site with the commit stamped in (see "Versions").
 3. After a minute the site is at `https://<username>.github.io/<repo>/`
    and the movie tracker at `.../apps/movies/` (in demo mode for now).
 4. Turn on two-factor sign-in for the GitHub account. Whoever can push to
@@ -160,15 +164,51 @@ When the shape of an app's data changes, raise `schemaVersion` in its
 they are next opened. An app that finds a file from a newer version of
 itself refuses to write to it.
 
+## Habits
+
+Log sets of an exercise with one tap, work towards a weekly goal and see
+the progress. It starts with one exercise (set up on first start from "how
+many can you do in one go?"); more can be added in the menu, counted in
+reps, seconds (for example hangboarding) or sets.
+
+What it borrows from behaviour research:
+
+- **Weekly goals, no daily streaks.** A missed day resets nothing, which
+  avoids the "it's ruined anyway" effect of broken streaks.
+- **Goals that stay reachable.** At the start of a week the app shows last
+  week's result and suggests a goal: a small step up after a reached goal,
+  the same again after a near miss, closer to what was done after a clear
+  miss.
+- **Pace.** The progress bar shows where an evenly spread week would be
+  today and how much per day is left, so the goal stays in sight.
+- **A plan in "after X, I do Y" form** (implementation intention), shown
+  next to the buttons.
+- **Small, easy sets.** Quick buttons default to about half of your
+  maximum, spread over the day.
+- **Fresh start and "don't miss twice".** Every Monday starts clean; after a
+  missed week the message is about not missing a second one.
+- **Rewards.** A celebration when the goal is reached, personal best sets,
+  milestones (50, 100, 250, ... in total) and the week streak.
+
+## Versions
+
+Every app shows its version and deploy time at the bottom of the menu, with
+a link to the commit; the start page shows it too. When a newer version has
+been deployed since the app was opened, a bar offers "Update now", which
+reloads the app with fresh files. A copy served straight from the folder
+(for example with `scripts/serve.mjs`) says "Development version".
+
 ## Testing
 
 ```
-npm test                          core, Drive backend, sign-in, TMDB, SIMKL import (Node only)
+npm test                          core, Drive backend, sign-in, versions, TMDB, SIMKL import, habits (Node only)
 python3 tests/e2e_movies.py       movie tracker in Chrome, demo mode
+python3 tests/e2e_habits.py       habit tracker in Chrome, demo mode
 python3 tests/e2e_drive_flow.py   sign-in and Drive flow in Chrome
 ```
 
-The two browser checks need Python with Playwright and Chrome. They use
+`npm test` also runs on every push before the deploy. The browser checks
+need Python with Playwright and Chrome. They use
 stand-ins for Google and TMDB, so they prove the app's own behaviour, not
 that the real services answer the same way.
 
@@ -187,7 +227,7 @@ that the real services answer the same way.
 ## Good to know
 
 - GitHub Pages may serve the previous version of a file for up to about ten
-  minutes after a push.
+  minutes after a push; "Update now" fetches everything fresh.
 - All apps share one web address, so they are not isolated from each other
   in the browser. That is fine while all the code is my own.
 - Storage sits behind a three-function interface (`load`, `getRev`, `save`

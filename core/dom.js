@@ -13,7 +13,12 @@ export function h(tag, props, ...children) {
       if (value === null || value === undefined || value === false) continue;
       if (key === 'class') el.className = value;
       else if (key === 'dataset') Object.assign(el.dataset, value);
-      else if (key === 'style') Object.assign(el.style, value);
+      else if (key === 'style') {
+        for (const [prop, v] of Object.entries(value)) {
+          if (prop.startsWith('--')) el.style.setProperty(prop, v);
+          else el.style[prop] = v;
+        }
+      }
       else if (key.startsWith('on') && typeof value === 'function') {
         el.addEventListener(key.slice(2).toLowerCase(), value);
       } else if (key in el && !key.startsWith('aria')) {
