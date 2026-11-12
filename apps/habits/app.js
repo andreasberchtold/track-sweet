@@ -85,8 +85,34 @@ function number(input) {
 
 // ---- main screen -------------------------------------------------------------------
 
+// Two screens: "Track" for logging, "Progress" for charts and records. The
+// progress screen is #progress in the address, so the phone's back button
+// returns to tracking.
+const isProgress = () => location.hash === '#progress';
+
 function mountApp({ root, store, shell }) {
   let seen = -1;
+  let openedProgress = false;
+
+  window.addEventListener('hashchange', () => {
+    render();
+    window.scrollTo(0, 0);
+  });
+
+  function showScreen(progress) {
+    if (progress === isProgress()) return;
+    if (progress) {
+      openedProgress = true;
+      location.hash = 'progress';
+    } else if (openedProgress) {
+      openedProgress = false;
+      history.back();
+    } else {
+      history.replaceState(null, '', location.pathname + location.search);
+      render();
+      window.scrollTo(0, 0);
+    }
+  }
 
   store.subscribe(() => {
     if (store.changes !== seen) render();
@@ -98,9 +124,11 @@ function mountApp({ root, store, shell }) {
     seen = store.changes;
     const habits = activeHabits(store);
     if (!habits.length) {
+      document.body.classList.remove('hb-has-nav');
       mount(root, setupView());
       return;
     }
+    document.body.classList.add('hb-has-nav');
     const habit = habits.find((x) => x.id === selected) ?? habits[0];
     selected = habit.id;
 
@@ -111,17 +139,51 @@ function mountApp({ root, store, shell }) {
     const goal = L.goalFor(habit, week);
     const total = L.weekTotal(days, week);
 
+    const progress = isProgress();
     mount(
       root,
       habits.length > 1 ? switcher(habits, habit) : null,
-      newWeekCard(habit, days, week),
-      hero(habit, days, total, goal, today),
-      logPad(habit),
-      todayList(habit, logs, today),
-      planCard(habit),
-      weeksSection(habit, days, today),
-      daysSection(habit, days, today),
-      statsSection(habit, logs, days, today),
+      progress
+        ? [
+            progressSummary(habit, total, goal),
+            weeksSection(habit, days, today),
+            daysSection(habit, days, today),
+            statsSection(habit, logs, days, today),
+            logs.length ? null : h('p', { class: 'hb-empty' }, 'Log a few sets and your progress shows up here.'),
+          ]
+        : [
+            newWeekCard(habit, days, week),
+            hero(habit, days, total, goal, today),
+            logPad(habit),
+            todayList(habit, logs, today),
+            planCard(habit),
+          ],
+      nav(progress),
+    );
+  }
+
+  function nav(progress) {
+    const tab = (label, target) =>
+      h(
+        'button',
+        {
+          class: 'hb-nav__tab',
+          type: 'button',
+          'aria-current': target === progress ? 'page' : null,
+          onclick: () => showScreen(target),
+        },
+        label,
+      );
+    return h('nav', { class: 'hb-nav', 'aria-label': 'Screens' }, tab('Track', false), tab('Progress', true));
+  }
+
+  function progressSummary(habit, total, goal) {
+    return h(
+      'p',
+      { class: 'hb-summary' },
+      goal
+        ? `This week: ${total.toLocaleString()} of ${goal.toLocaleString()} ${unitWord(habit, goal)}`
+        : `This week: ${amountText(habit, total)}`,
     );
   }
 

@@ -107,7 +107,13 @@ def main():
             expect(page.get_by_text("of 60 pull-ups")).to_be_visible()
             expect(status).to_have_text("Saved")
 
-            # 7. Charts and records are there; picking a week shows its numbers.
+            # 7. Tracking and progress are separate screens; the back button returns to tracking.
+            expect(page.get_by_role("heading", name="Last 12 weeks")).to_have_count(0)
+            shot(page, "1-track", full=True)
+            page.get_by_role("navigation", name="Screens").get_by_role("button", name="Progress").click()
+            expect(page).to_have_url(BASE + "#progress")
+            expect(page.locator(".hb-summary")).to_contain_text("of 60 pull-ups")
+            expect(page.get_by_label("Log 6 pull-ups")).to_have_count(0)
             expect(page.get_by_role("heading", name="Last 12 weeks")).to_be_visible()
             page.locator(".hb-col").last.click()
             expect(page.locator(".hb-detail").first).to_contain_text("This week: ")
@@ -115,7 +121,13 @@ def main():
             page.locator(".hb-col").first.click()
             expect(page.locator(".hb-detail").first).to_contain_text("Week of ")
             expect(page.get_by_text("Week streak")).to_be_visible()
-            shot(page, "1-main", full=True)
+            shot(page, "1-progress", full=True)
+            page.go_back()
+            expect(page.get_by_label("Log 6 pull-ups")).to_be_visible()
+            page.get_by_role("navigation", name="Screens").get_by_role("button", name="Progress").click()
+            page.get_by_role("navigation", name="Screens").get_by_role("button", name="Track").click()
+            expect(page).to_have_url(BASE)
+            expect(page.get_by_label("Log 6 pull-ups")).to_be_visible()
 
             # 8. Everything survives a reload.
             page.reload()
