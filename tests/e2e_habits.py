@@ -38,6 +38,16 @@ def main():
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(channel="chrome")
+            # Run in demo mode (data in the browser) whatever site.config.js says.
+            demo_config = "export default { googleClientId: '', driveFolder: 'Personal Apps' };"
+            new_context = browser.new_context
+
+            def demo_context(**kwargs):
+                ctx = new_context(**kwargs)
+                ctx.route("**/site.config.js", lambda r: r.fulfill(content_type="text/javascript", body=demo_config))
+                return ctx
+
+            browser.new_context = demo_context
             context = browser.new_context(viewport={"width": 412, "height": 915}, device_scale_factor=2)
             page = context.new_page()
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)

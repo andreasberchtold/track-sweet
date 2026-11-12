@@ -9,6 +9,6 @@
 //   per app (movies.json, health.json, ...). It is created on first use.
 
 export default {
-  googleClientId: '',
+  googleClientId: '879190549746-ng9n7iqag9o8h5jfi53pd03j2fm52q7m.apps.googleusercontent.com',
   driveFolder: 'Personal Apps',
 };
