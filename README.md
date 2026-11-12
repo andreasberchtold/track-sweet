@@ -135,6 +135,18 @@ How SIMKL's lists are translated: completed becomes Watched, watching and
 on hold become Watching (on hold gets a note), plan to watch becomes
 Watchlist, and dropped (SIMKL's "Not Interesting") becomes Not interesting.
 
+## Importing a list
+
+Menu, "Import a list", "Paste a list" takes titles copied from anywhere,
+one per line (for example a Microsoft To Do list). On each line it reads
+the year in brackets, an IMDb link, a note after "->" or in brackets before
+the title, and a trailing "?" for doubtful entries. Every title gets the
+default "watch with" tag unless its note names another tag (or says
+"alleine"/"alone"). Each title is looked up on TMDB and shown for review,
+with "Check" on matches that need a look; you can pick another match, keep
+the title as typed, change tags and notes, or leave it out. Titles already
+on the watchlist get the new tags; titles already watched are left alone.
+
 ## Working on it
 
 Try it locally (needs Node.js 20 or newer):

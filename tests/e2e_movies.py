@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -19,6 +20,27 @@ ROOT = Path(__file__).resolve().parent.parent
 PORT = 8791
 BASE = f"http://localhost:{PORT}/apps/movies/"
 SHOTS = Path(sys.argv[1]) if len(sys.argv) > 1 else None
+
+# Search answers for the "Import a list" step, by query.
+LIST_SEARCH = {
+    "Suspiria": [
+        {"id": 900, "media_type": "movie", "title": "Suspiria", "release_date": "2018-10-26", "poster_path": None},
+        {"id": 901, "media_type": "movie", "title": "Suspiria", "release_date": "1977-02-01", "poster_path": None},
+    ],
+    "Saltburn": [{"id": 902, "media_type": "movie", "title": "Saltburn", "release_date": "2023-11-17", "poster_path": None}],
+    "Butterfly effect": [{"id": 903, "media_type": "movie", "title": "The Butterfly Effect", "release_date": "2004-01-23", "poster_path": None}],
+    "True detective": [{"id": 904, "media_type": "tv", "name": "True Detective", "first_air_date": "2014-01-12", "poster_path": None}],
+    "Rachel McAdams": [{"id": 905, "media_type": "movie", "title": "About Time", "release_date": "2013-09-04", "poster_path": None}],
+}
+
+LIST_TEXT = """📺 Series / Movies
+
+  ❏ Suspiria (1977)
+  ❏ Saltburn (2023) -> alleine schauen: https://www.imdb.com/title/tt17351924/
+  ❏ Butterfly effect -> tip from Ben
+  ❏ Rachel McAdams?
+  ❏ True detective?
+"""
 
 SEARCH = {
     "results": [
@@ -65,7 +87,14 @@ def main():
                 url = route.request.url
                 if "/search/multi" in url:
                     assert "api_key=test-key" in url, url
-                    route.fulfill(json=SEARCH)
+                    query = parse_qs(urlparse(url).query)["query"][0]
+                    route.fulfill(json={"results": LIST_SEARCH[query]} if query in LIST_SEARCH else SEARCH)
+                elif "/find/tt17351924" in url:
+                    route.fulfill(json={"movie_results": [{"id": 902, "poster_path": None}], "tv_results": []})
+                elif "/movie/90" in url or "/tv/904" in url:
+                    tid = urlparse(url).path.rsplit("/", 1)[1]  # a distinct IMDb id per title
+                    route.fulfill(json={"imdb_id": f"tt990{tid}", "runtime": 99, "episode_run_time": [55],
+                                        "number_of_seasons": 4, "external_ids": {"imdb_id": f"tt990{tid}"}})
                 elif "/tv/1396" in url:
                     route.fulfill(json={"number_of_seasons": 5, "episode_run_time": [47],
                                         "external_ids": {"imdb_id": "tt0903747"}})
@@ -282,6 +311,52 @@ def main():
             expect(page.locator(".pa-status")).to_have_text("Saved")
             pulp = next(t for t in saved["collections"]["titles"] if t["title"] == "Pulp Fiction")
             assert pulp["tmdbId"] == 680 and pulp["simklId"] == 54130 and pulp["status"] == "watchlist", pulp
+            page.get_by_role("button", name="Watched", exact=True).click()
+
+            # 7e. Import a pasted list: default tag, "alleine" note, matches to check, skip one.
+            page.get_by_label("Menu").click()
+            page.get_by_label("Tag name").first.fill("3er")
+            page.get_by_role("button", name="Add tag").click()
+            page.get_by_label("Tag name").last.fill("Alone")
+            page.get_by_role("button", name="Save tags").click()
+            page.get_by_label("Menu").click()
+            page.get_by_role("button", name="Paste a list").click()
+            page.get_by_label("Your list").fill(LIST_TEXT)
+            expect(page.get_by_role("group", name="Watch with by default").get_by_role("button", name="3er")).to_have_attribute("aria-pressed", "true")
+            page.get_by_role("button", name="Find titles").click()
+            expect(page.get_by_text("5 titles found.")).to_be_visible()
+            rows = page.locator(".mv-li__row")
+            expect(rows).to_have_count(5)
+            suspiria = rows.nth(0)
+            expect(suspiria.locator(".mv-row__meta")).to_have_text("Movie, 1977")
+            expect(suspiria.locator(".mv-tag--check")).to_have_count(0)
+            saltburn = rows.nth(1)
+            expect(saltburn.get_by_role("button", name="Alone")).to_have_attribute("aria-pressed", "true")
+            expect(saltburn.get_by_role("button", name="3er")).to_have_attribute("aria-pressed", "false")
+            expect(saltburn.get_by_label("Note for Saltburn")).to_have_value("")
+            butterfly = rows.nth(2)
+            expect(butterfly.locator(".mv-row__title")).to_have_text("The Butterfly Effect")
+            expect(butterfly.get_by_label("Note for The Butterfly Effect")).to_have_value("tip from Ben")
+            mcadams = rows.nth(3)
+            expect(mcadams.locator(".mv-tag--check")).to_be_visible()
+            mcadams.get_by_label("Add About Time").uncheck()
+            expect(rows.nth(4).locator(".mv-tag--check")).to_be_visible()
+            shot(page, "10-list-review")
+            page.get_by_role("button", name="Add 4 to watchlist").click()
+            expect(page.get_by_text("Added 4 to your watchlist")).to_be_visible()
+            expect(page.locator(".pa-status")).to_have_text("Saved")
+            doc = json.loads(page.evaluate("localStorage.getItem('pa:demo:movies')"))["content"]
+            listed = {t["title"]: t for t in doc["collections"]["titles"]}
+            assert listed["Suspiria"]["tmdbId"] == 901 and listed["Suspiria"]["status"] == "watchlist", listed["Suspiria"]
+            assert listed["Suspiria"]["watchWith"] == ["friends"], listed["Suspiria"]
+            alone_id = next(t["id"] for t in doc["settings"]["watchWithTags"] if t["label"] == "Alone")
+            assert listed["Saltburn"]["watchWith"] == [alone_id], listed["Saltburn"]
+            assert listed["The Butterfly Effect"]["notes"] == "tip from Ben"
+            assert listed["The Butterfly Effect"]["runtime"] == 99
+            assert listed["True Detective"]["mediaType"] == "tv"
+            assert "About Time" not in listed
+            page.get_by_role("button", name="Watchlist", exact=True).click()
+            expect(page.locator(".mv-item").filter(has_text="Saltburn").locator(".mv-tag")).to_have_text(["Alone"])
             page.get_by_role("button", name="Watched", exact=True).click()
 
             # 8. Dark theme and a wide screen, for the record.

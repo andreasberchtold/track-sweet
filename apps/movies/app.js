@@ -6,6 +6,7 @@ import { h, icon, ICONS, mount } from '../../core/dom.js';
 import { debounce, formatDate, todayISO } from '../../core/util.js';
 import { createTmdb, formatRuntime, imdbUrl, posterUrl } from './tmdb.js';
 import { enrich, mapSimkl, mergeImport } from './simkl.js';
+import { findAll, mergeWatchlist, parseList, tagsForNote, toEntry } from './listimport.js';
 
 const TITLES = 'titles';
 
@@ -863,6 +864,28 @@ function settingsSection({ store, shell, close }) {
     ),
     h('div', { class: 'pa-field' }, h('label', { for: 'mv-import-file' }, 'SIMKL export file'), fileInput),
     importInfo,
+    h('h3', { class: 'mv-import-list-title' }, 'Import a list'),
+    h(
+      'p',
+      { class: 'pa-muted' },
+      'Paste titles from another list, for example a to-do app. You can check every match before anything is added to the watchlist.',
+    ),
+    h(
+      'div',
+      { class: 'pa-row' },
+      h(
+        'button',
+        {
+          class: 'pa-btn',
+          type: 'button',
+          onclick: () => {
+            close();
+            openListImport(store, shell, tmdb);
+          },
+        },
+        'Paste a list',
+      ),
+    ),
   );
 
   return h(
@@ -898,6 +921,260 @@ function settingsSection({ store, shell, close }) {
     ),
     h('div', { class: 'mv-importer' }, importer),
   );
+}
+
+// ---- import a pasted list ------------------------------------------------------
+
+function openListImport(store, shell, tmdb) {
+  const tags = withTags(store);
+  const body = h('div', { class: 'pa-form mv-listimport' });
+  let abort = null;
+  const panel = shell.sheet({ title: 'Import a list', body, onClose: () => abort?.abort() });
+  let pastedText = '';
+  let defaultTag = tags[0]?.id ?? null;
+
+  stepPaste();
+
+  function stepPaste() {
+    const text = h('textarea', {
+      class: 'pa-input mv-paste',
+      id: 'mv-paste',
+      rows: 10,
+      value: pastedText,
+      placeholder: 'One title per line, for example\nBugonia (2025)\nSaltburn (2023) -> alleine\nThe Curse https://www.imdb.com/title/tt13623608/',
+    });
+    const chips = h('div', { class: 'mv-chips', role: 'group', 'aria-label': 'Watch with by default' });
+    const drawChips = () =>
+      mount(
+        chips,
+        [...tags, { id: null, label: 'None' }].map((tag) =>
+          h(
+            'button',
+            {
+              class: 'mv-chip',
+              type: 'button',
+              'aria-pressed': String(defaultTag === tag.id),
+              onclick: () => {
+                defaultTag = tag.id;
+                drawChips();
+              },
+            },
+            tag.label,
+          ),
+        ),
+      );
+    drawChips();
+    const problem = h('p', { class: 'mv-error', 'aria-live': 'polite' });
+
+    mount(
+      body,
+      h(
+        'p',
+        { class: 'pa-muted' },
+        'Recognised on each line: the year in brackets, an IMDb link, a note after "->" or in brackets before the title, and a "?" for titles you are unsure about.',
+      ),
+      h('div', { class: 'pa-field' }, h('label', { for: 'mv-paste' }, 'Your list'), text),
+      h(
+        'div',
+        { class: 'pa-field' },
+        h('span', { class: 'pa-label' }, 'Watch with, unless the note says otherwise'),
+        chips,
+        h(
+          'p',
+          { class: 'pa-muted' },
+          'A note naming a tag (or saying "alleine" or "alone") gets that tag instead.',
+        ),
+      ),
+      !tmdb.hasKey() && h('p', { class: 'pa-muted' }, 'No TMDB key is saved, so titles are added as typed, without posters or matches.'),
+      problem,
+      h(
+        'div',
+        { class: 'pa-row pa-row--end' },
+        h(
+          'button',
+          {
+            class: 'pa-btn pa-btn--primary',
+            type: 'button',
+            onclick: () => {
+              pastedText = text.value;
+              const lines = parseList(pastedText);
+              if (!lines.length) {
+                problem.textContent = 'No titles found. Paste one title per line.';
+                return;
+              }
+              for (const line of lines) Object.assign(line, tagsForNote(line.note, tags, defaultTag), { include: true });
+              stepFind(lines);
+            },
+          },
+          tmdb.hasKey() ? 'Find titles' : 'Continue',
+        ),
+      ),
+    );
+    text.focus();
+  }
+
+  async function stepFind(lines) {
+    if (tmdb.hasKey()) {
+      const progress = h('p', { 'aria-live': 'polite' }, `Looking up ${lines.length} titles`);
+      mount(body, progress, h('div', { class: 'pa-spinner' }));
+      abort = new AbortController();
+      await findAll(lines, tmdb, {
+        signal: abort.signal,
+        onProgress: (done, total) => (progress.textContent = `Looking up titles: ${done} of ${total}`),
+      });
+      if (abort.signal.aborted) return;
+    } else {
+      for (const line of lines) Object.assign(line, { candidates: [], match: null, sure: false });
+    }
+    stepReview(lines);
+  }
+
+  function stepReview(lines) {
+    const addBtn = h('button', { class: 'pa-btn pa-btn--primary', type: 'button', onclick: () => add(lines) });
+    const count = () => {
+      const n = lines.filter((l) => l.include).length;
+      addBtn.textContent = `Add ${n} to watchlist`;
+      addBtn.disabled = n === 0;
+    };
+    const unsure = lines.filter((l) => l.include && !l.sure).length;
+
+    mount(
+      body,
+      h(
+        'p',
+        null,
+        `${lines.length} ${lines.length === 1 ? 'title' : 'titles'} found.` +
+          (unsure && tmdb.hasKey() ? ` ${unsure} marked "Check" may have the wrong match.` : ''),
+      ),
+      h('ul', { class: 'mv-li' }, lines.map((line) => reviewRow(line, count))),
+      h(
+        'div',
+        { class: 'pa-row pa-row--between mv-li__foot' },
+        h('button', { class: 'pa-btn pa-btn--quiet', type: 'button', onclick: stepPaste }, 'Back'),
+        addBtn,
+      ),
+    );
+    count();
+  }
+
+  function reviewRow(line, onChange) {
+    const row = h('li', { class: 'mv-li__row' });
+    const draw = () => {
+      const m = line.match;
+      const shown = m ?? { title: line.title, year: line.year, mediaType: line.mediaHint ?? 'movie', posterPath: null };
+      const include = h('input', {
+        type: 'checkbox',
+        checked: line.include,
+        'aria-label': `Add ${shown.title}`,
+        onchange: (event) => {
+          line.include = event.target.checked;
+          row.classList.toggle('is-skipped', !line.include);
+          onChange();
+        },
+      });
+      const options = [
+        ...(line.candidates ?? []).map((c, i) =>
+          h('option', { value: String(i), selected: c === m }, [c.title, [TYPE_LABEL[c.mediaType], c.year].filter(Boolean).join(', ')].join(' – ')),
+        ),
+        h('option', { value: 'typed', selected: !m }, `As typed: ${line.title}`),
+      ];
+      const select = h(
+        'select',
+        {
+          class: 'pa-input mv-li__select',
+          'aria-label': `Match for ${line.title}`,
+          onchange: (event) => {
+            const v = event.target.value;
+            line.match = v === 'typed' ? null : line.candidates[Number(v)];
+            line.sure = true;
+            draw();
+          },
+        },
+        options,
+      );
+      const chips = h(
+        'div',
+        { class: 'mv-chips mv-chips--small', role: 'group', 'aria-label': `Watch ${shown.title} with` },
+        tags.map((tag) =>
+          h(
+            'button',
+            {
+              class: 'mv-chip',
+              type: 'button',
+              'aria-pressed': String(line.watchWith.includes(tag.id)),
+              onclick: (event) => {
+                const set = new Set(line.watchWith);
+                if (set.has(tag.id)) set.delete(tag.id);
+                else set.add(tag.id);
+                line.watchWith = tags.map((t) => t.id).filter((id) => set.has(id));
+                event.currentTarget.setAttribute('aria-pressed', String(set.has(tag.id)));
+              },
+            },
+            tag.label,
+          ),
+        ),
+      );
+      const note = h('input', {
+        class: 'pa-input mv-li__note',
+        value: line.note ?? '',
+        placeholder: 'Note',
+        'aria-label': `Note for ${shown.title}`,
+        oninput: (event) => (line.note = event.target.value),
+      });
+      row.classList.toggle('is-skipped', !line.include);
+      mount(
+        row,
+        h(
+          'div',
+          { class: 'mv-li__head' },
+          include,
+          poster(shown),
+          h(
+            'div',
+            { class: 'mv-li__text' },
+            h('span', { class: 'mv-row__title' }, shown.title),
+            h('span', { class: 'mv-row__meta' }, [TYPE_LABEL[shown.mediaType], shown.year].filter(Boolean).join(', ') || 'No match'),
+            h('span', { class: 'mv-li__raw' }, line.raw),
+          ),
+          !line.sure && tmdb.hasKey() ? h('span', { class: 'mv-tag mv-tag--check' }, 'Check') : null,
+        ),
+        (line.candidates?.length ?? 0) > 0 ? select : null,
+        chips,
+        note,
+      );
+    };
+    draw();
+    return row;
+  }
+
+  async function add(lines) {
+    const chosen = lines.filter((l) => l.include);
+    const now = Date.now();
+    const entries = chosen.map((line, i) => toEntry({ ...line, note: (line.note ?? '').trim() }, i, now));
+    if (tmdb.hasKey()) {
+      const progress = h('p', { 'aria-live': 'polite' }, 'Adding running times and IMDb links');
+      mount(body, progress, h('div', { class: 'pa-spinner' }));
+      abort = new AbortController();
+      await enrich(entries, tmdb, {
+        signal: abort.signal,
+        onProgress: (done, total) => (progress.textContent = `Adding running times and IMDb links: ${done} of ${total}`),
+      });
+      if (abort.signal.aborted) return;
+    }
+    bulk = true;
+    let result;
+    try {
+      result = mergeWatchlist(store, TITLES, entries);
+    } finally {
+      bulk = false;
+      redraw();
+    }
+    panel.close();
+    const parts = [`Added ${result.added} to your watchlist`];
+    if (result.updated) parts.push(`${result.updated} already there got tags or notes`);
+    if (result.skipped) parts.push(`${result.skipped} already in your lists`);
+    shell.toast(parts.join(', '), { ms: 9000 });
+  }
 }
 
 // ---- small pieces -------------------------------------------------------------
