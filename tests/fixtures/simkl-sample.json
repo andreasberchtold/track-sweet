@@ -1,0 +1,44 @@
+{
+  "movies": [
+    {
+      "added_to_watchlist_at": "2026-05-14T06:49:56Z",
+      "last_watched_at": "2026-06-01T12:00:00Z",
+      "user_rating": 9,
+      "status": "completed",
+      "memo": { "text": "Rewatch with commentary", "is_private": true },
+      "movie": { "title": "The Godfather", "year": 1972, "runtime": 175, "ids": { "simkl": 53992, "imdb": "tt0068646", "tmdb": "238" } }
+    },
+    {
+      "added_to_watchlist_at": "2026-05-10T10:00:00Z",
+      "last_watched_at": null,
+      "user_rating": null,
+      "status": "plantowatch",
+      "movie": { "title": "Pulp Fiction", "year": 1994, "ids": { "simkl": 54130, "imdb": "tt0110912" } }
+    },
+    {
+      "added_to_watchlist_at": "2026-01-01T10:00:00Z",
+      "user_rating": 3,
+      "status": "dropped",
+      "movie": { "title": "Some Dud", "year": 2001, "ids": { "simkl": 1 } }
+    }
+  ],
+  "shows": [
+    {
+      "added_to_watchlist_at": "2026-05-15T00:35:15Z",
+      "last_watched_at": "2026-05-15T00:35:15Z",
+      "status": "watching",
+      "last_watched": "S02E05",
+      "next_to_watch": "S02E06",
+      "show": { "title": "The Walking Dead", "year": 2010, "runtime": 43, "ids": { "simkl": 2090, "imdb": "tt1520211" } }
+    }
+  ],
+  "anime": [
+    {
+      "status": "completed",
+      "anime_type": "movie",
+      "user_rating": 8,
+      "last_watched_at": "2024-12-24T12:00:00Z",
+      "show": { "title": "Spirited Away", "year": 2001, "ids": { "simkl": 9, "imdb": "tt0245429" } }
+    }
+  ]
+}

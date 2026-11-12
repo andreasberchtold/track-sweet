@@ -1,0 +1,451 @@
+/* Movies & Series. The accent is cinema-curtain plum; ratings are a row of
+   marquee bulbs, the one loud element in the app. */
+
+:root {
+  --accent: #8e2443;
+  --accent-ink: #ffffff;
+  --marquee: #2a1020;
+  --bulb: #f4c21f;
+  --bulb-off: #54303f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #f08aa6;
+    --accent-ink: #2a0b16;
+    --marquee: #0f0a14;
+    --bulb: #ffd24a;
+    --bulb-off: #3a2b3c;
+  }
+}
+
+.pa-toasts {
+  bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+/* ---- tools above the list ---- */
+
+.mv-tools {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mv-tools__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mv-tabs {
+  justify-self: start;
+}
+
+.mv-tabs {
+  max-width: 100%;
+}
+
+.mv-tabs .pa-seg__option {
+  min-height: 42px;
+  padding: 0 clamp(10px, 3.4vw, 22px);
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: clamp(0.9375rem, 4.2vw, 1.125rem);
+  white-space: nowrap;
+}
+
+.mv-sort {
+  width: auto;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+
+/* ---- list ---- */
+
+.mv-list {
+  padding-bottom: 96px;
+}
+
+.mv-section {
+  margin-top: 18px;
+}
+
+.mv-section__heading {
+  margin-bottom: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.mv-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mv-rows > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.mv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mv-row {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mv-row:hover .mv-row__title {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.mv-row__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mv-row__title {
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.mv-row__meta {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.mv-row__notes {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mv-poster {
+  display: block;
+  width: 46px;
+  height: 69px;
+  border-radius: var(--radius-s);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.mv-poster--blank {
+  display: grid;
+  place-items: center;
+  background: var(--marquee);
+  color: var(--bulb);
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* The score in a row: one lit bulb and the number. */
+.mv-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 3.1rem;
+  justify-content: flex-end;
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mv-score__bulb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bulb);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bulb) 30%, transparent);
+}
+
+.mv-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.mv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.mv-tags .mv-tag {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+/* Link to IMDb: a small pill beside each row, a text link in the editor. */
+.mv-imdb {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.mv-item > .mv-imdb {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.mv-item > .mv-imdb:hover {
+  border-color: var(--ink-2);
+}
+
+.mv-with {
+  justify-self: start;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.mv-with .pa-seg__option {
+  padding: 0 clamp(8px, 2.6vw, 14px);
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+.mv-tagrows {
+  display: grid;
+  gap: 8px;
+}
+
+.mv-tagrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mv-tagedit {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mv-importer {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.mv-importer .mv-tagedit {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.mv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mv-chip {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mv-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mv-empty {
+  margin-top: 14vh;
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  color: var(--ink-2);
+}
+
+.mv-error {
+  color: var(--danger);
+  font-size: 0.9375rem;
+}
+
+/* ---- add button ---- */
+
+.mv-add {
+  position: fixed;
+  right: max(16px, calc((100vw - var(--column)) / 2 + 16px));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  min-height: 54px;
+  padding: 0 22px 0 18px;
+  box-shadow: 0 6px 18px rgb(42 16 32 / 0.35);
+}
+
+/* ---- add and edit sheets ---- */
+
+.mv-results {
+  display: grid;
+  gap: 12px;
+  min-height: 30dvh;
+  align-content: start;
+}
+
+.mv-manual {
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  padding-block: 8px;
+}
+
+.mv-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mv-head .mv-poster {
+  flex: none;
+  width: 64px;
+  height: 96px;
+}
+
+.mv-head__title {
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mv-year {
+  width: 6.5rem;
+}
+
+.mv-editor > .pa-seg {
+  justify-self: start;
+  flex-wrap: wrap;
+  border-radius: 24px;
+}
+
+/* The rating: ten marquee bulbs on a dark board. */
+.mv-marquee {
+  display: grid;
+  gap: 10px;
+  padding: 16px 12px 12px;
+  border-radius: var(--radius-m);
+  background: var(--marquee);
+  color: #f6e9c4;
+}
+
+.mv-marquee__bulbs {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  justify-items: center;
+}
+
+.mv-bulb {
+  width: 100%;
+  max-width: 44px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.mv-bulb::before {
+  content: '';
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--bulb-off);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.08);
+  transition:
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+  transition-delay: calc(var(--i) * 22ms);
+}
+
+.mv-bulb[data-lit='true']::before {
+  background: var(--bulb);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bulb) 28%, transparent),
+    0 0 14px color-mix(in srgb, var(--bulb) 70%, transparent);
+}
+
+.mv-bulb:focus-visible {
+  outline-color: #f6e9c4;
+  border-radius: 50%;
+}
+
+.mv-marquee__readout {
+  text-align: center;
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.mv-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.mv-stepper__value {
+  min-width: 4.5rem;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mv-bulb::before {
+    transition: none;
+  }
+}

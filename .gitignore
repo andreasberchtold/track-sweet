@@ -1,0 +1,11 @@
+# Never commit personal data or secrets.
+# Copies downloaded from an app's menu are named <app>-YYYY-MM-DD.json:
+*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].json
+*.local
+simkl-export*.json
+.env*
+
+node_modules/
+__pycache__/
+.DS_Store
+Thumbs.db
