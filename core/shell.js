@@ -21,6 +21,7 @@ import { createLocalBackend } from './backend-local.js';
 import { createStore } from './store.js';
 import { h, icon, ICONS, mount } from './dom.js';
 import { AuthError, downloadJSON, todayISO } from './util.js';
+import * as updates from './updates.js';
 
 const STATUS_TEXT = {
   idle: '',
@@ -55,11 +56,13 @@ export async function startApp(app) {
     icon(ICONS.menu),
   );
   const notice = h('div', { class: 'pa-notice', hidden: true });
+  const updateBar = h('div', { class: 'pa-notice pa-notice--update', hidden: true, role: 'status' });
   const main = h('main', { class: 'pa-main' });
   const toasts = h('div', { class: 'pa-toasts', 'aria-live': 'polite' });
   mount(
     host,
     h('header', { class: 'pa-bar' }, h('h1', { class: 'pa-bar__title' }, app.name), statusBtn, menuBtn),
+    updateBar,
     notice,
     main,
     toasts,
@@ -187,11 +190,39 @@ export async function startApp(app) {
       lastRefresh = Date.now();
       store.refresh();
     }
+    checkForUpdate();
   });
   window.addEventListener('online', () => store.retry());
   window.addEventListener('beforeunload', (event) => {
     if (store.hasUnsaved) event.preventDefault();
   });
+
+  // ---- newer version deployed? --------------------------------------------
+  let lastUpdateCheck = 0;
+  async function checkForUpdate() {
+    if (Date.now() - lastUpdateCheck < 5 * 60_000) return;
+    lastUpdateCheck = Date.now();
+    const newer = await updates.newerVersion();
+    if (!newer) return;
+    mount(
+      updateBar,
+      h('span', null, `A newer version (${newer.commit}) is available.`),
+      h(
+        'button',
+        {
+          class: 'pa-btn pa-btn--small',
+          type: 'button',
+          onclick: async (event) => {
+            event.currentTarget.disabled = true;
+            await store.flush();
+            await updates.reloadFresh();
+          },
+        },
+        'Update now',
+      ),
+    );
+    updateBar.hidden = false;
+  }
 
   function showReconnectNotice() {
     mount(
@@ -283,6 +314,16 @@ export async function startApp(app) {
         ),
       );
     }
+    body.append(
+      h(
+        'section',
+        { class: 'pa-menu__section pa-menu__version' },
+        h('h3', null, 'Version'),
+        h('p', { class: 'pa-muted' }, updates.describe()),
+        updates.running.url &&
+          h('a', { href: updates.running.url, target: '_blank', rel: 'noopener' }, 'See this change on GitHub'),
+      ),
+    );
     if (app.about) body.append(h('p', { class: 'pa-muted pa-menu__about' }, app.about));
   }
 
@@ -311,8 +352,10 @@ export async function startApp(app) {
     return { dialog, close: () => dialog.open && dialog.close() };
   }
 
-  function toast(message, { action, ms = 4000 } = {}) {
-    const el = h('div', { class: 'pa-toast' }, h('span', null, message));
+  /** A short message at the bottom. A toast with the same `key` replaces the previous one. */
+  function toast(message, { action, ms = 4000, key } = {}) {
+    if (key) for (const old of toasts.querySelectorAll(`[data-key="${CSS.escape(key)}"]`)) old.remove();
+    const el = h('div', { class: 'pa-toast', dataset: key ? { key } : null }, h('span', null, message));
     if (action) {
       el.append(
         h(
@@ -366,6 +409,7 @@ export async function startApp(app) {
   }
 
   // ---- go ----------------------------------------------------------------
+  checkForUpdate();
   if (demo) {
     mount(
       notice,

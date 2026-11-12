@@ -197,6 +197,22 @@ textarea {
   font-size: 0.875rem;
 }
 
+.pa-notice .pa-btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.pa-notice--update {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.pa-menu__version a {
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .pa-main {
   flex: 1;
   display: flex;

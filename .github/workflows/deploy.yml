@@ -1,0 +1,60 @@
+# Publishes the apps to GitHub Pages on every push to main.
+#
+# Before publishing it runs the automated tests (a failing test stops the
+# deploy) and writes the commit into core/version.js and version.json, so
+# each app can show which version it runs and notice a newer one.
+#
+# One-time setting: repository Settings, Pages, Source: "GitHub Actions".
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run tests
+        run: npm test
+
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp -r index.html apps.json site.config.js core apps _site/
+          short="${GITHUB_SHA::7}"
+          date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          info="{\"commit\":\"${short}\",\"date\":\"${date}\",\"url\":\"${url}\"}"
+          echo "export default ${info};" > _site/core/version.js
+          echo "${info}" > _site/version.json
+          cat _site/version.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

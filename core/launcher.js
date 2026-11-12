@@ -1,6 +1,9 @@
 // The start page: one link per app, read from apps.json.
 
 import { h, mount } from './dom.js';
+import { describe } from './updates.js';
+
+document.getElementById('version').textContent = describe();
 
 const list = document.getElementById('apps');
 

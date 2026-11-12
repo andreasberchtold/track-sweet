@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Small personal web apps that keep their data as files in my Google Drive.",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\"",
+    "test": "node --test tests/*.test.mjs",
     "serve": "node scripts/serve.mjs",
     "new-app": "node scripts/new-app.mjs"
   }

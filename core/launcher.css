@@ -23,3 +23,7 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+
+.la-footer {
+  padding: 24px 0 calc(16px + env(safe-area-inset-bottom));
+}
