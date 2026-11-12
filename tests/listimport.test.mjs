@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { bestMatch, mergeWatchlist, parseLine, parseList, tagsForNote, toEntry } from '../apps/movies/listimport.js';
+import { bestMatch, fromTodoJson, mergeWatchlist, parseLine, parseList, tagsForNote, toEntry } from '../apps/movies/listimport.js';
 import { createStore } from '../core/store.js';
 import { createLocalBackend, createMemoryStorage } from '../core/backend-local.js';
 
@@ -39,6 +39,32 @@ test('reads titles, years, links, notes and doubts', () => {
   assert.equal(by['The Curse'].year, null);
   assert.equal(by['True detective'].unsure, true);
   assert.equal(by.Pi.title, 'Pi');
+});
+
+test('Microsoft To Do tasks as JSON, with their notes', () => {
+  const json = JSON.stringify({
+    '@odata.context': "https://graph.microsoft.com/v1.0/$metadata#users('x')/todo/lists('y')/tasks",
+    value: [
+      { title: 'Bugonia (2025) - IMDb', status: 'notStarted', body: { content: 'alleine schauen\r\n', contentType: 'text' } },
+      { title: 'The Others (2001) - IMDb', status: 'notStarted', body: { content: '<p>Tipp vo Ben</p><p>https://www.imdb.com/title/tt0230600/</p>', contentType: 'html' } },
+      { title: 'Heat (1995)', status: 'completed', body: { content: '', contentType: 'text' } },
+      { title: '  ', status: 'notStarted', body: { content: 'x', contentType: 'text' } },
+    ],
+  });
+  const lines = parseList(json);
+  assert.equal(lines.length, 3);
+  assert.deepEqual([lines[0].title, lines[0].year, lines[0].note, lines[0].done], ['Bugonia', 2025, 'alleine schauen', false]);
+  assert.equal(lines[1].note, 'Tipp vo Ben');
+  assert.equal(lines[1].imdbId, 'tt0230600');
+  assert.equal(lines[1].raw, 'The Others (2001) - IMDb (note: Tipp vo Ben)');
+  assert.equal(lines[2].done, true);
+  assert.deepEqual(tagsForNote(lines[0].note, TAGS, '3er').watchWith, ['solo']);
+  // Two pages pasted one after the other.
+  const page = (title) => JSON.stringify({ value: [{ title, status: 'notStarted', body: { content: '', contentType: 'text' } }], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/x?$skip=10' }, null, 2);
+  assert.deepEqual(parseList(`${page('Pi')}\n\n${page('Traffic (2000)')}`).map((l) => l.title), ['Pi', 'Traffic']);
+  // Plain text and other JSON are not mistaken for To Do tasks.
+  assert.equal(fromTodoJson('Heat (1995)'), null);
+  assert.equal(fromTodoJson('{"app":"movies"}'), null);
 });
 
 test('other list styles', () => {

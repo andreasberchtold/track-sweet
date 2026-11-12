@@ -67,10 +67,91 @@ export function parseLine(raw) {
 }
 
 export function parseList(text) {
-  return String(text ?? '')
-    .split(/\r?\n/)
-    .map(parseLine)
+  return (
+    fromTodoJson(text) ??
+    String(text ?? '')
+      .split(/\r?\n/)
+      .map(parseLine)
+      .filter(Boolean)
+  );
+}
+
+/**
+ * Tasks as Microsoft Graph returns them (for example from Graph Explorer):
+ * { "value": [ { "title": "...", "status": "notStarted", "body": { "content": "..." } } ] }
+ * The task's notes become the line's note. Completed tasks are marked done.
+ * Several pages (Graph sends tasks in pages) can be pasted one after another.
+ * Returns null when the text is not such JSON.
+ */
+export function fromTodoJson(text) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+  const pages = jsonSequence(trimmed);
+  if (!pages) return null;
+  const tasks = pages.flatMap((page) => (Array.isArray(page) ? page : page?.value ?? []));
+  if (!tasks.length || !tasks.every((t) => typeof t?.title === 'string')) return null;
+  return tasks
+    .map((task) => {
+      const line = parseLine(task.title);
+      if (!line) return null;
+      let body = String(task.body?.content ?? '');
+      if (task.body?.contentType === 'html' || /<\/?[a-z][^>]*>/i.test(body)) body = htmlToText(body);
+      body = body.replace(/\s+/g, ' ').trim();
+      const idInBody = /\b(tt\d{7,9})\b/.exec(body)?.[1];
+      if (!line.imdbId && idInBody) line.imdbId = idInBody;
+      body = body.replace(/https?:\/\/\S+/g, ' ').replace(/\s+/g, ' ').trim();
+      line.note = [line.note, body].filter(Boolean).join('. ');
+      line.raw = body ? `${task.title.trim()} (note: ${body})` : task.title.trim();
+      line.done = task.status === 'completed';
+      return line;
+    })
     .filter(Boolean);
+}
+
+/** Parse one or more JSON values written one after another. Null if any part is not JSON. */
+function jsonSequence(text) {
+  const values = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i += 1;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{' || c === '[') {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (c === '}' || c === ']') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          values.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          return null;
+        }
+      }
+    } else if (depth === 0 && !/\s/.test(c)) {
+      return null;
+    }
+  }
+  return depth === 0 && values.length ? values : null;
+}
+
+function htmlToText(html) {
+  return html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li)>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 /**

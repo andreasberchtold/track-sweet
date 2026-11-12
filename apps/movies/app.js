@@ -971,7 +971,7 @@ function openListImport(store, shell, tmdb) {
       h(
         'p',
         { class: 'pa-muted' },
-        'Recognised on each line: the year in brackets, an IMDb link, a note after "->" or in brackets before the title, and a "?" for titles you are unsure about.',
+        'Recognised on each line: the year in brackets, an IMDb link, a note after "->" or in brackets before the title, and a "?" for titles you are unsure about. Microsoft To Do tasks exported as JSON (with their notes) can be pasted too.',
       ),
       h('div', { class: 'pa-field' }, h('label', { for: 'mv-paste' }, 'Your list'), text),
       h(
@@ -1002,7 +1002,8 @@ function openListImport(store, shell, tmdb) {
                 problem.textContent = 'No titles found. Paste one title per line.';
                 return;
               }
-              for (const line of lines) Object.assign(line, tagsForNote(line.note, tags, defaultTag), { include: true });
+              // Tasks already ticked off in the other app start unticked here.
+              for (const line of lines) Object.assign(line, tagsForNote(line.note, tags, defaultTag), { include: !line.done });
               stepFind(lines);
             },
           },
@@ -1136,7 +1137,11 @@ function openListImport(store, shell, tmdb) {
             h('span', { class: 'mv-row__meta' }, [TYPE_LABEL[shown.mediaType], shown.year].filter(Boolean).join(', ') || 'No match'),
             h('span', { class: 'mv-li__raw' }, line.raw),
           ),
-          !line.sure && tmdb.hasKey() ? h('span', { class: 'mv-tag mv-tag--check' }, 'Check') : null,
+          line.done
+            ? h('span', { class: 'mv-tag' }, 'Done in list')
+            : !line.sure && tmdb.hasKey()
+              ? h('span', { class: 'mv-tag mv-tag--check' }, 'Check')
+              : null,
         ),
         (line.candidates?.length ?? 0) > 0 ? select : null,
         chips,
