@@ -175,7 +175,7 @@ test('enrich adds posters, ids and season counts, and survives failures', async 
     },
     async details(mediaType, tmdbId) {
       calls.push(`details ${mediaType} ${tmdbId}`);
-      if (tmdbId === 1396) return { imdbId: 'tt0903747', runtime: 47, seasonsTotal: 5, posterPath: '/bb.jpg' };
+      if (tmdbId === 1396) return { imdbId: 'tt0903747', runtime: 47, seasonsTotal: 5, posterPath: '/bb.jpg', genres: ['Drama', 'Crime'] };
       return { imdbId: null, runtime: 154, seasonsTotal: null, posterPath: '/other.jpg' };
     },
   };
@@ -188,6 +188,7 @@ test('enrich adds posters, ids and season counts, and survives failures', async 
   assert.equal(by['Pulp Fiction'].runtime, 154);
   assert.equal(by['The Godfather'].runtime, 175); // SIMKL's own value is kept
   assert.equal(by['Breaking Bad'].seasonsTotal, 5);
+  assert.deepEqual(by['Breaking Bad'].genres, ['Drama', 'Crime']);
   assert.equal(by['The Walking Dead'].posterPath, null); // lookup failed, import goes on
   assert.equal(by['Paused Show'].tmdbId, null); // no ids to look up
   assert.equal(progress.at(-1), '7/7');

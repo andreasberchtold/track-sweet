@@ -112,6 +112,7 @@ export function mergeImport(store, collection, entries) {
     for (const key of ['simklId', 'tmdbId', 'imdbId', 'posterPath', 'runtime', 'seasonsTotal', 'year']) {
       if (!existing[key] && fields[key]) fill[key] = fields[key];
     }
+    if (!Array.isArray(existing.genres) && Array.isArray(fields.genres)) fill.genres = fields.genres;
     if (fields.tmdbDetails && !existing.tmdbDetails) fill.tmdbDetails = true;
     if (Object.keys(fill).length) {
       store.put(collection, { id: existing.id, ...fill });
@@ -156,6 +157,7 @@ export async function enrich(entries, tmdb, { onProgress, signal, concurrency = 
           entry.imdbId ??= details.imdbId;
           entry.runtime ??= details.runtime;
           entry.seasonsTotal ??= details.seasonsTotal;
+          entry.genres ??= details.genres;
           entry.tmdbDetails = true;
         }
       } catch (err) {

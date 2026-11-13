@@ -108,6 +108,14 @@ allow pop-ups for the site (Chrome, Site settings, Pop-ups and redirects).
 Google's access lasts about an hour; after that the app reconnects when it
 is opened again, or shows "Tap to reconnect" if a change is waiting.
 
+## Genres
+
+Every title found on TMDB stores its genres, in the language chosen for
+titles. The watchlist shows them under each title, and a genre filter sits
+next to the sort order. Titles added before genres existed get them filled
+in automatically when the app opens; changing the title language fetches
+them again in the new language.
+
 ## Moving over from SIMKL
 
 The movie tracker can import SIMKL's export: Menu, "Import from SIMKL",

@@ -52,8 +52,8 @@ test('a long read access token is sent as a header, not in the address', async (
 });
 
 test('details of a movie: IMDb id and running time', async () => {
-  const { tmdb, calls } = setup('k', ok({ imdb_id: 'tt0113277', runtime: 170 }));
-  assert.deepEqual(await tmdb.details('movie', 949), { imdbId: 'tt0113277', runtime: 170, seasonsTotal: null, posterPath: null });
+  const { tmdb, calls } = setup('k', ok({ imdb_id: 'tt0113277', runtime: 170, genres: [{ id: 80, name: 'Krimi' }, { id: 18, name: 'Drama' }] }));
+  assert.deepEqual(await tmdb.details('movie', 949), { imdbId: 'tt0113277', runtime: 170, seasonsTotal: null, posterPath: null, genres: ['Krimi', 'Drama'] });
   assert.equal(calls[0].url.pathname, '/3/movie/949');
 });
 
@@ -62,14 +62,14 @@ test('details of a series: IMDb id, episode length and seasons', async () => {
     'k',
     ok({ number_of_seasons: 4, episode_run_time: [52], poster_path: '/d.jpg', external_ids: { imdb_id: 'tt5753856' } }),
   );
-  assert.deepEqual(await tmdb.details('tv', 77), { imdbId: 'tt5753856', runtime: 52, seasonsTotal: 4, posterPath: '/d.jpg' });
+  assert.deepEqual(await tmdb.details('tv', 77), { imdbId: 'tt5753856', runtime: 52, seasonsTotal: 4, posterPath: '/d.jpg', genres: [] });
   assert.equal(calls[0].url.pathname, '/3/tv/77');
   assert.equal(calls[0].url.searchParams.get('append_to_response'), 'external_ids');
 });
 
 test('details cope with missing facts', async () => {
   const { tmdb } = setup('k', ok({ episode_run_time: [], external_ids: {} }));
-  assert.deepEqual(await tmdb.details('tv', 1), { imdbId: null, runtime: null, seasonsTotal: null, posterPath: null });
+  assert.deepEqual(await tmdb.details('tv', 1), { imdbId: null, runtime: null, seasonsTotal: null, posterPath: null, genres: [] });
 });
 
 test('findByImdb returns the matching title, preferring the expected type', async () => {

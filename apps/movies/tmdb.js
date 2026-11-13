@@ -44,7 +44,7 @@ export function createTmdb({ getKey, getLanguage, fetchImpl = (...args) => globa
         .map(fromResult);
     },
 
-    /** Extra facts about one title: IMDb id, running time, number of seasons. */
+    /** Extra facts about one title: IMDb id, running time, seasons, poster, genres. */
     async details(mediaType, tmdbId, signal) {
       if (mediaType === 'tv') {
         const data = await call(`/tv/${tmdbId}`, { append_to_response: 'external_ids' }, signal);
@@ -53,6 +53,7 @@ export function createTmdb({ getKey, getLanguage, fetchImpl = (...args) => globa
           runtime: Number(data.episode_run_time?.[0]) || null, // minutes per episode
           seasonsTotal: Number(data.number_of_seasons) || null,
           posterPath: data.poster_path || null,
+          genres: genreNames(data),
         };
       }
       const data = await call(`/movie/${tmdbId}`, {}, signal);
@@ -61,6 +62,7 @@ export function createTmdb({ getKey, getLanguage, fetchImpl = (...args) => globa
         runtime: Number(data.runtime) || null,
         seasonsTotal: null,
         posterPath: data.poster_path || null,
+        genres: genreNames(data),
       };
     },
 
@@ -74,6 +76,11 @@ export function createTmdb({ getKey, getLanguage, fetchImpl = (...args) => globa
       return { tmdbId: pick.id, mediaType: pick === tv ? 'tv' : 'movie', posterPath: pick.poster_path || null };
     },
   };
+}
+
+/** Genre names in the language chosen for titles, for example ["Drama", "Thriller"]. */
+function genreNames(data) {
+  return (data.genres ?? []).map((g) => g?.name).filter(Boolean);
 }
 
 export function fromResult(r) {

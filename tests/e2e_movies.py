@@ -107,7 +107,8 @@ def main():
                 elif "/movie/238" in url:
                     route.fulfill(json={"imdb_id": "tt0068646", "runtime": 175})
                 elif "/movie/27205" in url:
-                    route.fulfill(json={"imdb_id": "tt1375666", "runtime": 148})
+                    route.fulfill(json={"imdb_id": "tt1375666", "runtime": 148,
+                                        "genres": [{"id": 28, "name": "Action"}, {"id": 878, "name": "Science Fiction"}]})
                 else:
                     route.fulfill(status=404, json={})
 
@@ -154,6 +155,7 @@ def main():
             page.get_by_role("searchbox").fill("inc")
             page.get_by_role("button", name="Inception").click()
             expect(page.get_by_text("Movie, 2010, 2 h 28 min")).to_be_visible()
+            expect(page.locator(".mv-editor").get_by_text("Action, Science Fiction")).to_be_visible()
             expect(page.get_by_role("link", name="Open on IMDb")).to_have_attribute(
                 "href", "https://www.imdb.com/title/tt1375666/")
             page.get_by_role("button", name="Girlfriend").last.click()
@@ -175,6 +177,12 @@ def main():
             rows = page.locator(".mv-item")
             inception = rows.filter(has_text="Inception")
             expect(inception).to_contain_text("Movie, 2010, 2 h 28 min")
+            expect(inception.locator(".mv-row__genres")).to_have_text("Action, Science Fiction")
+            genre = page.get_by_label("Genre")
+            expect(genre.locator("option")).to_have_text(["All genres", "Action (1)", "Science Fiction (1)"])
+            genre.select_option("Action")
+            expect(rows).to_have_count(1)
+            genre.select_option("all")
             expect(inception.locator(".mv-tag")).to_have_text(["Friends", "Girlfriend"])
             expect(inception.get_by_role("link", name="Inception on IMDb")).to_have_attribute(
                 "href", "https://www.imdb.com/title/tt1375666/")

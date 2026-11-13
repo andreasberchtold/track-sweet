@@ -81,7 +81,7 @@ function mountApp({ root, store, shell }) {
     getKey: () => store.setting('tmdbKey', ''),
     getLanguage: () => store.setting('tmdbLanguage', 'en-US'),
   });
-  const view = { tab: 'watched', type: 'all', sort: 'recent', with: 'all' };
+  const view = { tab: 'watched', type: 'all', sort: 'recent', with: 'all', genre: 'all' };
 
   const tabs = segmented(
     [
@@ -118,6 +118,14 @@ function mountApp({ root, store, shell }) {
       },
     },
   );
+  const genreSelect = h('select', {
+    class: 'pa-input mv-sort mv-genre',
+    'aria-label': 'Genre',
+    onchange: (event) => {
+      view.genre = event.target.value;
+      render();
+    },
+  });
   const withFilter = h('div', { class: 'pa-seg mv-with', role: 'group', 'aria-label': 'Watch with' });
   tabs.el.classList.add('mv-tabs');
   const list = h('div', { class: 'mv-list' });
@@ -130,7 +138,7 @@ function mountApp({ root, store, shell }) {
 
   mount(
     root,
-    h('div', { class: 'mv-tools' }, tabs.el, h('div', { class: 'mv-tools__filters' }, types.el, sortSelect), withFilter),
+    h('div', { class: 'mv-tools' }, tabs.el, h('div', { class: 'mv-tools__filters' }, types.el, h('div', { class: 'mv-tools__selects' }, genreSelect, sortSelect)), withFilter),
     list,
     addBtn,
   );
@@ -141,6 +149,7 @@ function mountApp({ root, store, shell }) {
   });
   redraw = render;
   render();
+  setTimeout(() => fillMissingGenres(store, shell), 1500);
 
   // ---- the list ----------------------------------------------------------
 
@@ -175,8 +184,22 @@ function mountApp({ root, store, shell }) {
     withFilter.hidden = !onWatchlist || !tags.length;
     const all = store.list(TITLES);
     const inTab = all.filter((t) => tabOf(t.status) === view.tab);
-    const shown = inTab
-      .filter((t) => view.type === 'all' || t.mediaType === view.type)
+    const ofType = inTab.filter((t) => view.type === 'all' || t.mediaType === view.type);
+
+    // Genres of the titles in this tab and type, most common first.
+    const genreCount = new Map();
+    for (const t of ofType) for (const g of t.genres ?? []) genreCount.set(g, (genreCount.get(g) ?? 0) + 1);
+    const genres = [...genreCount].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([g]) => g);
+    if (view.genre !== 'all' && !genreCount.has(view.genre)) view.genre = 'all';
+    mount(
+      genreSelect,
+      h('option', { value: 'all', selected: view.genre === 'all' }, 'All genres'),
+      genres.map((g) => h('option', { value: g, selected: view.genre === g }, `${g} (${genreCount.get(g)})`)),
+    );
+    genreSelect.hidden = !genres.length;
+
+    const shown = ofType
+      .filter((t) => view.genre === 'all' || (t.genres ?? []).includes(view.genre))
       .filter((t) => !onWatchlist || view.with === 'all' || (t.watchWith ?? []).includes(view.with))
       .sort(sorter(view.sort));
 
@@ -225,6 +248,9 @@ function mountApp({ root, store, shell }) {
           { class: 'mv-row__text' },
           h('span', { class: 'mv-row__title' }, title.title),
           h('span', { class: 'mv-row__meta' }, metaLine(title)),
+          title.status !== 'watched' && title.status !== 'watching' && title.genres?.length
+            ? h('span', { class: 'mv-row__genres' }, genreText(title))
+            : null,
           marks.length
             ? h('span', { class: 'mv-tags' }, marks.map((tag) => h('span', { class: 'mv-tag' }, tag.label)))
             : null,
@@ -399,12 +425,12 @@ function mountApp({ root, store, shell }) {
     const form = h('form', { class: 'pa-form mv-editor', onsubmit: save });
     const panel = shell.sheet({ title: isNew ? 'Add title' : 'Edit title', body: form });
 
-    // Look up IMDb id, running time and season count once per title.
-    if (draft.tmdbId && !draft.tmdbDetails && tmdb.hasKey()) {
+    // Look up IMDb id, running time, seasons and genres once per title.
+    if (draft.tmdbId && (!draft.tmdbDetails || !Array.isArray(draft.genres)) && tmdb.hasKey()) {
       tmdb
         .details(draft.mediaType, draft.tmdbId)
         .then((found) => {
-          const extra = { imdbId: found.imdbId, runtime: found.runtime, tmdbDetails: true };
+          const extra = { imdbId: draft.imdbId || found.imdbId, runtime: draft.runtime || found.runtime, genres: found.genres, tmdbDetails: true };
           if (found.seasonsTotal) extra.seasonsTotal = found.seasonsTotal;
           if (found.posterPath && !draft.posterPath) extra.posterPath = found.posterPath;
           Object.assign(draft, extra);
@@ -493,6 +519,7 @@ function mountApp({ root, store, shell }) {
                   { class: 'pa-muted' },
                   [TYPE_LABEL[draft.mediaType], draft.year, runtimeText(draft)].filter(Boolean).join(', '),
                 ),
+                draft.genres?.length ? h('p', { class: 'pa-muted' }, genreText(draft)) : null,
                 imdbLink(draft, 'Open on IMDb'),
               ),
             ),
@@ -911,9 +938,11 @@ function settingsSection({ store, shell, close }) {
           type: 'button',
           onclick: () => {
             store.setSetting('tmdbKey', key.value.trim() || null);
+            const languageChanged = store.setting('tmdbLanguage', 'en-US') !== language.value;
             store.setSetting('tmdbLanguage', language.value);
             close();
             shell.toast('Search settings saved');
+            fillMissingGenres(store, shell, { refetchAll: languageChanged });
           },
         },
         'Save search settings',
@@ -1205,6 +1234,52 @@ function imdbLink(title, label = 'IMDb') {
     },
     label,
   );
+}
+
+/** "Drama, Thriller, Mystery" (at most three). */
+function genreText(title) {
+  return (title.genres ?? []).slice(0, 3).join(', ');
+}
+
+/**
+ * Titles found on TMDB before genres were stored (or after the title
+ * language changed) get their genres looked up in the background.
+ */
+let fillingGenres = false;
+async function fillMissingGenres(store, shell, { refetchAll = false } = {}) {
+  if (fillingGenres) return;
+  const tmdb = createTmdb({
+    getKey: () => store.setting('tmdbKey', ''),
+    getLanguage: () => store.setting('tmdbLanguage', 'en-US'),
+  });
+  if (!tmdb.hasKey()) return;
+  const todo = store.list(TITLES).filter((t) => t.tmdbId && (refetchAll || !Array.isArray(t.genres)));
+  if (!todo.length) return;
+  fillingGenres = true;
+  const found = new Map();
+  let next = 0;
+  async function worker() {
+    while (next < todo.length) {
+      const title = todo[next];
+      next += 1;
+      try {
+        const details = await tmdb.details(title.mediaType, title.tmdbId);
+        found.set(title.id, details.genres);
+      } catch {
+        // Try again next time the app opens.
+      }
+    }
+  }
+  try {
+    await Promise.all([worker(), worker(), worker()]);
+    bulk = true;
+    for (const [id, genres] of found) if (store.get(TITLES, id)) store.put(TITLES, { id, genres });
+  } finally {
+    bulk = false;
+    fillingGenres = false;
+    redraw();
+  }
+  if (found.size >= 5) shell.toast(`Genres added to ${found.size} titles`);
 }
 
 function runtimeText(title) {

@@ -56,6 +56,22 @@
   white-space: nowrap;
 }
 
+.mv-tools__selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mv-genre {
+  max-width: 11rem;
+}
+
+.mv-row__genres {
+  font-size: 0.8125rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .mv-sort {
   width: auto;
   min-height: 44px;

@@ -320,6 +320,7 @@ export function mergeWatchlist(store, collection, entries) {
     for (const key of ['tmdbId', 'imdbId', 'posterPath', 'runtime', 'year']) {
       if (!existing[key] && entry[key]) fill[key] = entry[key];
     }
+    if (!Array.isArray(existing.genres) && Array.isArray(entry.genres)) fill.genres = entry.genres;
     if (Object.keys(fill).length) {
       store.put(collection, { id: existing.id, ...fill });
       result.updated += 1;
