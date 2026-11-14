@@ -247,6 +247,31 @@
   text-decoration: none;
 }
 
+.mv-item > .mv-imdb--rated {
+  gap: 4px;
+  grid-auto-flow: column;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mv-imdb--rated svg {
+  color: var(--bulb);
+  stroke: color-mix(in srgb, var(--bulb) 70%, black);
+  stroke-width: 1;
+}
+
+.mv-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.mv-ratings strong {
+  color: var(--ink);
+}
+
 .mv-item > .mv-imdb:hover {
   border-color: var(--ink-2);
 }

@@ -89,13 +89,16 @@ Until a Google client ID is entered in `site.config.js`, the apps run in
 6. Copy the **Client ID** (ends in `.apps.googleusercontent.com`) into
    `site.config.js`, commit and push. The client ID is not a secret.
 
-### 3. TMDB (movie tracker only)
+### 3. TMDB and OMDb (movie tracker only)
 
 1. Create a free account at <https://www.themoviedb.org>, then Settings,
    API, and request a key (type "Developer", personal use).
 2. In the movie tracker open the menu, paste the key under "Title search"
    and save. The key is stored in `movies.json` in Drive, never in this
    repository.
+3. For ratings: request a free key at <https://www.omdbapi.com> ("API
+   Key"), confirm it from the email, and paste it into the "OMDb key"
+   field in the same menu section.
 
 ### 4. On the phone
 
@@ -115,6 +118,15 @@ titles. The watchlist shows them under each title, and a genre filter sits
 next to the sort order. Titles added before genres existed get them filled
 in automatically when the app opens; changing the title language fetches
 them again in the new language.
+
+## Ratings
+
+With a free OMDb key (omdbapi.com, entered in the menu next to the TMDB
+key), each title with an IMDb id gets its IMDb rating and Rotten Tomatoes
+score. The IMDb button in the lists shows a star and the IMDb rating; the
+title's details show both. Ratings are looked up in the background and
+refreshed once a month. OMDb's free key allows a limited number of
+lookups per day; when the limit is reached, the rest follows the next day.
 
 ## Moving over from SIMKL
 

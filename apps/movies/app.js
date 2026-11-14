@@ -7,6 +7,7 @@ import { debounce, formatDate, todayISO } from '../../core/util.js';
 import { createTmdb, formatRuntime, imdbUrl, posterUrl } from './tmdb.js';
 import { enrich, mapSimkl, mergeImport } from './simkl.js';
 import { findAll, mergeWatchlist, parseList, tagsForNote, toEntry } from './listimport.js';
+import { createOmdb, OmdbKeyError } from './omdb.js';
 
 const TITLES = 'titles';
 
@@ -149,7 +150,7 @@ function mountApp({ root, store, shell }) {
   });
   redraw = render;
   render();
-  setTimeout(() => fillMissingGenres(store, shell), 1500);
+  setTimeout(() => fillMissingDetails(store, shell), 1500);
 
   // ---- the list ----------------------------------------------------------
 
@@ -437,6 +438,25 @@ function mountApp({ root, store, shell }) {
           if (!isNew && store.get(TITLES, title.id)) store.put(TITLES, { id: title.id, ...extra });
           const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName ?? '');
           if (panel.dialog.isConnected && !typing) draw();
+          lookUpRatings();
+        })
+        .catch(() => {});
+    } else {
+      lookUpRatings();
+    }
+
+    // IMDb and Rotten Tomatoes ratings, when there is an IMDb id and none are stored yet.
+    function lookUpRatings() {
+      const omdb = omdbFor(store);
+      if (!draft.imdbId || draft.ratings || !omdb.hasKey()) return;
+      omdb
+        .ratings(draft.imdbId)
+        .then((found) => {
+          const ratings = { ...found, checkedOn: todayISO() };
+          draft.ratings = ratings;
+          if (!isNew && store.get(TITLES, title.id)) store.put(TITLES, { id: title.id, ratings });
+          const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName ?? '');
+          if (panel.dialog.isConnected && !typing) draw();
         })
         .catch(() => {});
     }
@@ -520,6 +540,7 @@ function mountApp({ root, store, shell }) {
                   [TYPE_LABEL[draft.mediaType], draft.year, runtimeText(draft)].filter(Boolean).join(', '),
                 ),
                 draft.genres?.length ? h('p', { class: 'pa-muted' }, genreText(draft)) : null,
+                ratingsLine(draft),
                 imdbLink(draft, 'Open on IMDb'),
               ),
             ),
@@ -712,6 +733,14 @@ function settingsSection({ store, shell, close }) {
     placeholder: 'Paste your key',
     value: store.setting('tmdbKey', ''),
   });
+  const omdbKey = h('input', {
+    class: 'pa-input',
+    id: 'mv-omdb-key',
+    autocomplete: 'off',
+    spellcheck: false,
+    placeholder: 'Paste your key',
+    value: store.setting('omdbKey', ''),
+  });
   const language = h(
     'select',
     { class: 'pa-input', id: 'mv-tmdb-language' },
@@ -872,6 +901,7 @@ function settingsSection({ store, shell, close }) {
       bulk = false;
       redraw();
     }
+    setTimeout(() => fillMissingDetails(store, shell), 3000);
     close();
     shell.toast(
       `Imported ${result.added} ${result.added === 1 ? 'title' : 'titles'}` +
@@ -930,6 +960,13 @@ function settingsSection({ store, shell, close }) {
     h('div', { class: 'pa-field' }, h('label', { for: 'mv-tmdb-language' }, 'Language for titles'), language),
     h(
       'div',
+      { class: 'pa-field' },
+      h('label', { for: 'mv-omdb-key' }, 'OMDb key (for IMDb and Rotten Tomatoes ratings)'),
+      omdbKey,
+      h('p', { class: 'pa-muted' }, 'A free key from omdbapi.com, under "API Key". Without it, titles show no ratings.'),
+    ),
+    h(
+      'div',
       { class: 'pa-row' },
       h(
         'button',
@@ -938,11 +975,12 @@ function settingsSection({ store, shell, close }) {
           type: 'button',
           onclick: () => {
             store.setSetting('tmdbKey', key.value.trim() || null);
+            store.setSetting('omdbKey', omdbKey.value.trim() || null);
             const languageChanged = store.setting('tmdbLanguage', 'en-US') !== language.value;
             store.setSetting('tmdbLanguage', language.value);
             close();
             shell.toast('Search settings saved');
-            fillMissingGenres(store, shell, { refetchAll: languageChanged });
+            fillMissingDetails(store, shell, { refetchAll: languageChanged });
           },
         },
         'Save search settings',
@@ -1205,6 +1243,7 @@ function openListImport(store, shell, tmdb) {
       bulk = false;
       redraw();
     }
+    setTimeout(() => fillMissingDetails(store, shell), 3000);
     panel.close();
     const parts = [`Added ${result.added} to your watchlist`];
     if (result.addedWatched) parts.push(`${result.addedWatched} as watched`);
@@ -1223,20 +1262,40 @@ function poster(title, size = 'w92') {
 }
 
 /** A link to the title on IMDb. It opens in a new tab and never opens the editor. */
+/**
+ * A link to the title on IMDb. In lists it shows a star and the IMDb
+ * rating (or "IMDb" while there is none); in the editor it is a text link.
+ */
 function imdbLink(title, label = 'IMDb') {
+  const rating = label === 'IMDb' ? title.ratings?.imdb : null;
   return h(
     'a',
     {
-      class: 'mv-imdb',
+      class: `mv-imdb${rating ? ' mv-imdb--rated' : ''}`,
       href: imdbUrl(title),
       target: '_blank',
       rel: 'noopener noreferrer',
-      'aria-label': label === 'IMDb' ? `${title.title} on IMDb` : null,
+      'aria-label':
+        label === 'IMDb' ? `${title.title} on IMDb${rating ? `, rated ${rating.toFixed(1)}` : ''}` : null,
       // The title of a hand-typed entry can change while the editor is open.
       onclick: (event) => (event.currentTarget.href = imdbUrl(title)),
     },
-    label,
+    rating ? [icon(ICONS.star, 15, { filled: true }), rating.toFixed(1)] : label,
   );
+}
+
+/** "IMDb 8.1, Rotten Tomatoes 92%" with what is known. */
+function ratingsLine(title) {
+  const r = title.ratings;
+  if (!r || (r.imdb == null && r.rt == null)) return null;
+  const parts = [];
+  if (r.imdb != null) parts.push(h('span', null, 'IMDb ', h('strong', null, r.imdb.toFixed(1))));
+  if (r.rt != null) parts.push(h('span', null, 'Rotten Tomatoes ', h('strong', null, `${r.rt}%`)));
+  return h('p', { class: 'mv-ratings' }, parts);
+}
+
+function omdbFor(store) {
+  return createOmdb({ getKey: () => store.setting('omdbKey', '') });
 }
 
 /** "Drama, Thriller, Mystery" (at most three). */
@@ -1244,45 +1303,91 @@ function genreText(title) {
   return (title.genres ?? []).slice(0, 3).join(', ');
 }
 
-/**
- * Titles found on TMDB before genres were stored (or after the title
- * language changed) get their genres looked up in the background.
- */
-let fillingGenres = false;
-async function fillMissingGenres(store, shell, { refetchAll = false } = {}) {
-  if (fillingGenres) return;
-  const tmdb = createTmdb({
-    getKey: () => store.setting('tmdbKey', ''),
-    getLanguage: () => store.setting('tmdbLanguage', 'en-US'),
-  });
-  if (!tmdb.hasKey()) return;
-  const todo = store.list(TITLES).filter((t) => t.tmdbId && (refetchAll || !Array.isArray(t.genres)));
-  if (!todo.length) return;
-  fillingGenres = true;
-  const found = new Map();
+const RATINGS_MAX_AGE_DAYS = 30;
+
+/** Run a lookup for each item, three at a time. Stops early when `stop()` says so. */
+async function eachLimited(items, fn, stop = () => false) {
   let next = 0;
   async function worker() {
-    while (next < todo.length) {
-      const title = todo[next];
+    while (next < items.length && !stop()) {
+      const item = items[next];
       next += 1;
-      try {
-        const details = await tmdb.details(title.mediaType, title.tmdbId);
-        found.set(title.id, details.genres);
-      } catch {
-        // Try again next time the app opens.
-      }
+      await fn(item);
     }
   }
-  try {
-    await Promise.all([worker(), worker(), worker()]);
+  await Promise.all([worker(), worker(), worker()]);
+}
+
+/**
+ * In the background, when the app opens and after imports:
+ * 1. TMDB: genres (and the IMDb id) for titles that lack them, or all
+ *    genres again after the title language changed.
+ * 2. OMDb: IMDb and Rotten Tomatoes ratings for titles with an IMDb id,
+ *    refreshed once they are a month old.
+ */
+let fillingDetails = false;
+async function fillMissingDetails(store, shell, { refetchAll = false } = {}) {
+  if (fillingDetails) return;
+  fillingDetails = true;
+  const write = (updates) => {
+    if (!updates.size) return;
     bulk = true;
-    for (const [id, genres] of found) if (store.get(TITLES, id)) store.put(TITLES, { id, genres });
+    try {
+      for (const [id, fields] of updates) if (store.get(TITLES, id)) store.put(TITLES, { id, ...fields });
+    } finally {
+      bulk = false;
+      redraw();
+    }
+  };
+  try {
+    const tmdb = createTmdb({
+      getKey: () => store.setting('tmdbKey', ''),
+      getLanguage: () => store.setting('tmdbLanguage', 'en-US'),
+    });
+    if (tmdb.hasKey()) {
+      const todo = store
+        .list(TITLES)
+        .filter((t) => t.tmdbId && (refetchAll || !Array.isArray(t.genres) || !t.imdbId));
+      const updates = new Map();
+      await eachLimited(todo, async (title) => {
+        try {
+          const details = await tmdb.details(title.mediaType, title.tmdbId);
+          const fields = { genres: details.genres };
+          if (!title.imdbId && details.imdbId) fields.imdbId = details.imdbId;
+          updates.set(title.id, fields);
+        } catch {
+          // Try again next time the app opens.
+        }
+      });
+      write(updates);
+      if (updates.size >= 5 && todo.some((t) => !Array.isArray(t.genres))) shell.toast(`Genres added to ${updates.size} titles`);
+    }
+
+    const omdb = omdbFor(store);
+    if (omdb.hasKey()) {
+      const oldest = new Date(Date.now() - RATINGS_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
+      const todo = store.list(TITLES).filter((t) => t.imdbId && (!t.ratings || (t.ratings.checkedOn ?? '') < oldest));
+      const updates = new Map();
+      let keyProblem = null;
+      await eachLimited(
+        todo,
+        async (title) => {
+          try {
+            const found = await omdb.ratings(title.imdbId);
+            updates.set(title.id, { ratings: { ...found, checkedOn: todayISO() } });
+          } catch (err) {
+            if (err instanceof OmdbKeyError) keyProblem = err.message;
+          }
+        },
+        () => keyProblem !== null,
+      );
+      write(updates);
+      if (keyProblem) shell.toast(keyProblem, { ms: 8000 });
+      else if (updates.size >= 5) shell.toast(`Ratings added to ${updates.size} titles`);
+    }
   } finally {
-    bulk = false;
-    fillingGenres = false;
-    redraw();
+    fillingDetails = false;
   }
-  if (found.size >= 5) shell.toast(`Genres added to ${found.size} titles`);
 }
 
 function runtimeText(title) {

@@ -114,6 +114,17 @@ def main():
 
             page.route("https://api.themoviedb.org/**", tmdb)
 
+            def omdb(route):
+                imdb = parse_qs(urlparse(route.request.url).query)["i"][0]
+                if imdb == "tt1375666":
+                    route.fulfill(json={"Response": "True", "imdbRating": "8.8", "Ratings": [
+                        {"Source": "Internet Movie Database", "Value": "8.8/10"},
+                        {"Source": "Rotten Tomatoes", "Value": "87%"}]})
+                else:
+                    route.fulfill(json={"Response": "True", "imdbRating": "7.1", "Ratings": []})
+
+            page.route("https://www.omdbapi.com/**", omdb)
+
             # 1. Opens in demo mode with an empty list.
             page.goto(BASE)
             expect(page.get_by_text("Demo mode")).to_be_visible()
@@ -136,6 +147,7 @@ def main():
             # 3. Save a TMDB key in the menu, then search.
             page.get_by_label("Menu").click()
             page.get_by_label("TMDB key").fill("test-key")
+            page.get_by_label("OMDb key (for IMDb and Rotten Tomatoes ratings)").fill("omdb-key")
             page.get_by_role("button", name="Save search settings").click()
             page.locator(".mv-add").click()
             page.get_by_role("searchbox").fill("bre")
@@ -156,6 +168,7 @@ def main():
             page.get_by_role("button", name="Inception").click()
             expect(page.get_by_text("Movie, 2010, 2 h 28 min")).to_be_visible()
             expect(page.locator(".mv-editor").get_by_text("Action, Science Fiction")).to_be_visible()
+            expect(page.locator(".mv-ratings")).to_have_text("IMDb 8.8Rotten Tomatoes 87%")
             expect(page.get_by_role("link", name="Open on IMDb")).to_have_attribute(
                 "href", "https://www.imdb.com/title/tt1375666/")
             page.get_by_role("button", name="Girlfriend").last.click()
@@ -184,7 +197,8 @@ def main():
             expect(rows).to_have_count(1)
             genre.select_option("all")
             expect(inception.locator(".mv-tag")).to_have_text(["Friends", "Girlfriend"])
-            expect(inception.get_by_role("link", name="Inception on IMDb")).to_have_attribute(
+            expect(inception.locator(".mv-imdb")).to_have_text("8.8")
+            expect(inception.get_by_role("link", name="Inception on IMDb, rated 8.8")).to_have_attribute(
                 "href", "https://www.imdb.com/title/tt1375666/")
             expect(rows.filter(has_text="Le Samourai").get_by_role("link")).to_have_attribute(
                 "href", "https://www.imdb.com/find/?s=tt&q=Le%20Samourai")
