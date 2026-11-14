@@ -67,6 +67,48 @@ test('Microsoft To Do tasks as JSON, with their notes', () => {
   assert.equal(fromTodoJson('{"app":"movies"}'), null);
 });
 
+test('lines as To Do titles often look', () => {
+  const zone = parseLine('The Zone of Interest (2023): https://www.imdb.com/title/tt7160372/');
+  assert.deepEqual([zone.title, zone.year, zone.imdbId, zone.note], ['The Zone of Interest', 2023, 'tt7160372', '']);
+  const amrum = parseLine('Amrum: https://m.imdb.com/title/tt22507216/?ref_=ext_shr_lnk');
+  assert.deepEqual([amrum.title, amrum.imdbId], ['Amrum', 'tt22507216']);
+  const anora = parseLine('Anora (Oscar Winner)');
+  assert.deepEqual([anora.title, anora.note], ['Anora', 'Oscar Winner']);
+  const iraq = parseLine('Serie - Once Upon a Time in Iraq (TV Mini Series 2020) - IMDb');
+  assert.deepEqual([iraq.title, iraq.year, iraq.mediaHint], ['Once Upon a Time in Iraq', 2020, 'tv']);
+  const tip = parseLine('Our Friend (2019) tip: https://www.srf.ch/streaming-tipp');
+  assert.equal(tip.note, 'https://www.srf.ch/streaming-tipp'); // other links are kept
+  assert.deepEqual(tagsForNote(parseLine('Heretic (zum elei luege)').note, TAGS, '3er'), { watchWith: ['solo'], note: '' });
+});
+
+test('ticked-off To Do tasks become watched, on the day they were ticked off', async () => {
+  const json = JSON.stringify({
+    value: [
+      { title: 'Sinners (2025) - IMDb', status: 'completed', completedDateTime: { dateTime: '2026-03-01T22:30:00.0000000', timeZone: 'UTC' }, body: { content: 'TYSO #337', contentType: 'text' } },
+      { title: 'Heat (1995)', status: 'completed', completedDateTime: { dateTime: '2025-05-02T10:00:00.0000000', timeZone: 'UTC' }, body: { content: '', contentType: 'text' } },
+      { title: 'Alien (1979)', status: 'completed', body: { content: '', contentType: 'text' } },
+    ],
+  });
+  const lines = parseList(json);
+  assert.equal(lines[0].done, true);
+  assert.match(lines[0].doneOn, /^2026-03-0[12]$/); // local date of the moment it was ticked off
+  const store = await emptyStore();
+  store.put('titles', { tmdbId: 10, mediaType: 'movie', title: 'Heat', status: 'watchlist', watchWith: [], notes: '' });
+  store.put('titles', { tmdbId: 11, mediaType: 'movie', title: 'Alien', status: 'watched', watchedOn: '2020-01-01', rating: 9 });
+  const matched = [result(30, 'Sinners', 2025), result(10, 'Heat', 1995), result(11, 'Alien', 1979)];
+  const entries = lines.map((l, i) => toEntry({ ...l, match: matched[i], watchWith: ['3er'] }, i));
+  assert.deepEqual(mergeWatchlist(store, 'titles', entries), { added: 0, addedWatched: 1, updated: 2, skipped: 0 });
+  const by = Object.fromEntries(store.list('titles').map((t) => [t.title, t]));
+  assert.equal(by.Sinners.status, 'watched');
+  assert.equal(by.Sinners.watchedOn, lines[0].doneOn);
+  assert.equal(by.Sinners.notes, 'TYSO #337');
+  assert.equal(by.Heat.status, 'watched'); // moved from the watchlist
+  assert.equal(by.Heat.watchedOn, '2025-05-02');
+  assert.equal(by.Alien.watchedOn, '2020-01-01'); // own date and rating kept
+  assert.equal(by.Alien.rating, 9);
+  await store.flush();
+});
+
 test('other list styles', () => {
   assert.equal(parseLine('- [ ] Heat (1995)').title, 'Heat');
   assert.equal(parseLine('3) Dark (TV Series 2017–2020)').mediaHint, 'tv');
@@ -152,7 +194,7 @@ test('merging adds new titles, adds tags to listed ones, leaves watched ones alo
   const entries = lines.map((l, i) => toEntry(l, i, Date.parse('2026-11-12T20:00:00Z')));
   assert.equal(entries[0].createdAt > entries[2].createdAt, true); // first line counts as newest
 
-  assert.deepEqual(mergeWatchlist(store, 'titles', entries), { added: 2, updated: 1, skipped: 1 });
+  assert.deepEqual(mergeWatchlist(store, 'titles', entries), { added: 2, addedWatched: 0, updated: 1, skipped: 1 });
   const by = Object.fromEntries(store.list('titles').map((t) => [t.title, t]));
   assert.deepEqual(by.Heat.watchWith, ['partner', '3er']);
   assert.equal(by.Heat.notes, 'tip from Ben');
@@ -162,6 +204,6 @@ test('merging adds new titles, adds tags to listed ones, leaves watched ones alo
   assert.equal(by['Rachel McAdams'].tmdbId, null);
 
   // Running it again changes nothing.
-  assert.deepEqual(mergeWatchlist(store, 'titles', entries), { added: 0, updated: 0, skipped: 4 });
+  assert.deepEqual(mergeWatchlist(store, 'titles', entries), { added: 0, addedWatched: 0, updated: 0, skipped: 4 });
   await store.flush();
 });

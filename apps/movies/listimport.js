@@ -18,8 +18,10 @@ const HEADING = /^\s*\p{Extended_Pictographic}/u;
 const YEAR = /\(\s*(?:(TV Movie|TV Series|TV Mini[- ]?Series|TV Special|Video|Short|Mini[- ]?Series)\s*)?((?:18|19|20)\d{2})(?:\s*[–-]\s*(?:\d{4})?)?\s*\)\s*$/i;
 
 /** Words that mean "on my own" in a note, for the solo tag (id "solo" or named like one). */
-const SOLO_WORDS = ['alleine', 'allein', 'alone', 'solo', 'by myself'];
-const FILLER = /\b(?:schauen|anschauen|luege|lüege|watch|watching|mit|with|zu|to|go|gah)\b/gi;
+const SOLO_WORDS = ['alleine', 'allein', 'elei', 'eleige', 'alone', 'solo', 'by myself'];
+const FILLER = /\b(?:schauen|anschauen|luege|lüege|watch|watching|mit|with|zu|zum|to|go|gah)\b/gi;
+const IMDB_URL = /https?:\/\/(?:[a-z]+\.)?imdb\.com\/\S*/gi;
+const ANY_URL = /https?:\/\/\S+/g;
 
 export function parseLine(raw) {
   if (!raw || !raw.trim()) return null;
@@ -30,9 +32,10 @@ export function parseLine(raw) {
   line = line.trim();
 
   const imdbId = /\b(tt\d{7,9})\b/.exec(line)?.[1] ?? null;
-  line = line.replace(/https?:\/\/\S+/g, ' ').replace(/\s+/g, ' ').trim();
-
   const notes = [];
+  // IMDb links only identify the title; other links ("tip from here: ...") are kept as notes.
+  const links = (line.replace(IMDB_URL, ' ').match(ANY_URL) ?? []);
+  line = line.replace(ANY_URL, ' ').replace(/\s+/g, ' ').trim();
   const [main, ...after] = line.split(/\s*(?:->|→|=>)\s*/);
   line = main;
   if (after.length) notes.push(after.join(' ').trim());
@@ -43,14 +46,29 @@ export function parseLine(raw) {
     line = line.slice(lead[0].length);
   }
 
-  line = line.replace(/\s*[-–—|]\s*IMDb\s*$/i, '').trim();
+  let mediaHint = null;
+  // "Serie - Title" or "Series: Title"
+  const seriesPrefix = /^(?:serie|series|tv|tv-serie)\s*[-–—:]\s*/i.exec(line);
+  if (seriesPrefix) {
+    mediaHint = 'tv';
+    line = line.slice(seriesPrefix[0].length);
+  }
+
+  line = line.replace(/\s*[-–—|]\s*IMDb\s*$/i, '').replace(/[\s:;,]+$/, '').trim();
+
+  // A note in brackets at the end, like "(Oscar Winner)", but not a year.
+  const trail = /\s*\(([^()]*)\)\s*$/.exec(line);
+  if (trail && !YEAR.test(trail[0].trim()) && line.length > trail[0].length) {
+    notes.push(trail[1].trim());
+    line = line.slice(0, trail.index).trim();
+  }
 
   let year = null;
-  let mediaHint = null;
   const y = YEAR.exec(line);
   if (y) {
     year = Number(y[2]);
     if (/series/i.test(y[1] ?? '')) mediaHint = 'tv';
+    // (The "if" above only sets the hint; a "Serie -" prefix may already have.)
     line = line.slice(0, y.index).trim();
     line = line.replace(/\s*[-–—|]\s*IMDb\s*$/i, '').trim();
   }
@@ -59,6 +77,7 @@ export function parseLine(raw) {
   line = line.replace(/\?+\s*$/, '').replace(/[\s:;,.-]+$/, '').trim();
   if (!line) return null;
 
+  notes.push(...links);
   const note = notes
     .map((n) => n.replace(/[\s:;,]+$/, '').trim())
     .filter(Boolean)
@@ -99,10 +118,19 @@ export function fromTodoJson(text) {
       body = body.replace(/\s+/g, ' ').trim();
       const idInBody = /\b(tt\d{7,9})\b/.exec(body)?.[1];
       if (!line.imdbId && idInBody) line.imdbId = idInBody;
-      body = body.replace(/https?:\/\/\S+/g, ' ').replace(/\s+/g, ' ').trim();
+      body = body.replace(IMDB_URL, ' ').replace(/\s+/g, ' ').trim();
       line.note = [line.note, body].filter(Boolean).join('. ');
       line.raw = body ? `${task.title.trim()} (note: ${body})` : task.title.trim();
       line.done = task.status === 'completed';
+      // When it was ticked off: the day it was watched, as a local date.
+      const doneAt = task.completedDateTime?.dateTime;
+      if (line.done && doneAt) {
+        const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(doneAt) ? doneAt : `${doneAt}Z`;
+        const d = new Date(iso);
+        if (!Number.isNaN(d.getTime())) {
+          line.doneOn = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
       return line;
     })
     .filter(Boolean);
@@ -266,7 +294,7 @@ export async function findAll(lines, tmdb, { onProgress, signal, concurrency = 4
   await Promise.all(Array.from({ length: Math.min(concurrency, lines.length) }, worker));
 }
 
-/** Turn a reviewed line into a watchlist entry. */
+/** Turn a reviewed line into an entry: watchlist, or watched if ticked off in the other list. */
 export function toEntry(line, index = 0, now = Date.now()) {
   const m = line.match;
   return {
@@ -276,9 +304,10 @@ export function toEntry(line, index = 0, now = Date.now()) {
     title: m?.title ?? line.title,
     year: m?.year ?? line.year ?? null,
     posterPath: m?.posterPath ?? null,
-    status: 'watchlist',
+    // Ticked off in the other list means watched.
+    status: line.done ? 'watched' : 'watchlist',
     rating: null,
-    watchedOn: null,
+    watchedOn: line.done ? line.doneOn ?? null : null,
     runtime: null,
     seasonsWatched: null,
     seasonsTotal: null,
@@ -290,12 +319,14 @@ export function toEntry(line, index = 0, now = Date.now()) {
 }
 
 /**
- * Add entries to the watchlist. A title already on the watchlist gets the
- * new tags added and the note filled in if it had none; a title already
- * watched (or marked not interesting) is left alone.
+ * Add entries to the lists. A title already in the list is never
+ * duplicated: it gets new tags and missing facts (note, genres, ...) added.
+ * A watched entry moves a title from the watchlist (or "not interesting")
+ * to watched; a title already watched keeps its own date and rating.
+ * A watchlist entry for a title already watched changes nothing.
  */
 export function mergeWatchlist(store, collection, entries) {
-  const result = { added: 0, updated: 0, skipped: 0 };
+  const result = { added: 0, addedWatched: 0, updated: 0, skipped: 0 };
   for (const entry of entries) {
     const titles = store.list(collection);
     // Titles without any id (no match found) are recognised by their name.
@@ -306,15 +337,21 @@ export function mergeWatchlist(store, collection, entries) {
         : null);
     if (!existing) {
       store.put(collection, entry);
-      result.added += 1;
+      if (entry.status === 'watched') result.addedWatched += 1;
+      else result.added += 1;
       continue;
     }
-    if (existing.status !== 'watchlist') {
+    const seen = existing.status === 'watched' || existing.status === 'watching';
+    if (seen && entry.status !== 'watched') {
       result.skipped += 1;
       continue;
     }
     const tags = [...new Set([...(existing.watchWith ?? []), ...entry.watchWith])];
     const fill = {};
+    if (entry.status === 'watched' && !seen) {
+      fill.status = 'watched';
+      if (entry.watchedOn) fill.watchedOn = entry.watchedOn;
+    }
     if (tags.length !== (existing.watchWith ?? []).length) fill.watchWith = tags;
     if (!existing.notes && entry.notes) fill.notes = entry.notes;
     for (const key of ['tmdbId', 'imdbId', 'posterPath', 'runtime', 'year']) {

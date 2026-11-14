@@ -1000,7 +1000,7 @@ function openListImport(store, shell, tmdb) {
       h(
         'p',
         { class: 'pa-muted' },
-        'Recognised on each line: the year in brackets, an IMDb link, a note after "->" or in brackets before the title, and a "?" for titles you are unsure about. Microsoft To Do tasks exported as JSON (with their notes) can be pasted too.',
+        'Recognised on each line: the year in brackets, an IMDb link, a note after "->" or in brackets, and a "?" for titles you are unsure about. Microsoft To Do tasks exported as JSON can be pasted too: notes come along, and ticked-off tasks are added as watched.',
       ),
       h('div', { class: 'pa-field' }, h('label', { for: 'mv-paste' }, 'Your list'), text),
       h(
@@ -1031,8 +1031,7 @@ function openListImport(store, shell, tmdb) {
                 problem.textContent = 'No titles found. Paste one title per line.';
                 return;
               }
-              // Tasks already ticked off in the other app start unticked here.
-              for (const line of lines) Object.assign(line, tagsForNote(line.note, tags, defaultTag), { include: !line.done });
+              for (const line of lines) Object.assign(line, tagsForNote(line.note, tags, defaultTag), { include: true });
               stepFind(lines);
             },
           },
@@ -1062,8 +1061,11 @@ function openListImport(store, shell, tmdb) {
   function stepReview(lines) {
     const addBtn = h('button', { class: 'pa-btn pa-btn--primary', type: 'button', onclick: () => add(lines) });
     const count = () => {
-      const n = lines.filter((l) => l.include).length;
-      addBtn.textContent = `Add ${n} to watchlist`;
+      const chosen = lines.filter((l) => l.include);
+      const n = chosen.length;
+      const watched = chosen.filter((l) => l.done).length;
+      addBtn.textContent = watched ? `Add ${n} ${n === 1 ? 'title' : 'titles'}` : `Add ${n} to watchlist`;
+      addBtn.title = watched ? `${n - watched} to the watchlist, ${watched} as watched` : '';
       addBtn.disabled = n === 0;
     };
     const unsure = lines.filter((l) => l.include && !l.sure).length;
@@ -1167,7 +1169,7 @@ function openListImport(store, shell, tmdb) {
             h('span', { class: 'mv-li__raw' }, line.raw),
           ),
           line.done
-            ? h('span', { class: 'mv-tag' }, 'Done in list')
+            ? h('span', { class: 'mv-tag' }, line.doneOn ? `Watched ${formatDate(line.doneOn)}` : 'Watched')
             : !line.sure && tmdb.hasKey()
               ? h('span', { class: 'mv-tag mv-tag--check' }, 'Check')
               : null,
@@ -1205,7 +1207,8 @@ function openListImport(store, shell, tmdb) {
     }
     panel.close();
     const parts = [`Added ${result.added} to your watchlist`];
-    if (result.updated) parts.push(`${result.updated} already there got tags or notes`);
+    if (result.addedWatched) parts.push(`${result.addedWatched} as watched`);
+    if (result.updated) parts.push(`${result.updated} already listed got updates`);
     if (result.skipped) parts.push(`${result.skipped} already in your lists`);
     shell.toast(parts.join(', '), { ms: 9000 });
   }

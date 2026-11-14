@@ -150,8 +150,8 @@ one per line (for example a Microsoft To Do list). On each line it reads
 the year in brackets, an IMDb link, a note after "->" or in brackets before
 the title, and a trailing "?" for doubtful entries. Microsoft To Do tasks
 exported as JSON from Graph Explorer can be pasted too, including their
-notes (several pages one after another); tasks already completed there
-start unticked. Every title gets the
+notes (several pages one after another); tasks already ticked off there
+are added as watched, dated the day they were ticked off. Every title gets the
 default "watch with" tag unless its note names another tag (or says
 "alleine"/"alone"). Each title is looked up on TMDB and shown for review,
 with "Check" on matches that need a look; you can pick another match, keep
