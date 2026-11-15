@@ -20,7 +20,7 @@ const VIEW_KEY = 'jb:view';
 const PROFILE_FIELDS = [
   ['roles', 'Roles and keywords', 'e.g. Senior Software Engineer, Fullstack, .NET, TypeScript'],
   ['avoid', 'Not interested in', 'e.g. SAP, pure frontend, consulting agencies'],
-  ['locations', 'Locations', 'e.g. Zurich, Baden, remote'],
+  ['locations', 'Locations', 'Towns or cantons, e.g. Zurich, Aargau, Zug, remote'],
   ['workload', 'Workload', 'e.g. 80–100%'],
   ['salary', 'Salary range', 'e.g. CHF 120–140k'],
 ];
@@ -800,7 +800,7 @@ function settingsSection({ store }) {
     'div',
     { class: 'pa-form' },
     h('h3', null, 'What I am looking for'),
-    h('p', { class: 'pa-muted' }, 'The automatic import picks jobs whose title has one of the roles and keywords (comma-separated), none of the words to avoid, and, for company sites, one of the locations. Saved in jobs.json in your Drive.'),
+    h('p', { class: 'pa-muted' }, 'The automatic import picks jobs whose title has one of the roles and keywords (comma-separated), none of the words to avoid, and is in one of the locations (a canton covers its towns; empty means all of Switzerland). Saved in jobs.json in your Drive.'),
     PROFILE_FIELDS.map(([key, label, placeholder]) => {
       const input = h('input', { class: 'pa-input', placeholder, value: profile[key] ?? '', autocomplete: 'off' });
       inputs[key] = input;

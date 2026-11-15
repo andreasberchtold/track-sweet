@@ -27,7 +27,10 @@ are never read; use their e-mail alerts and the app's "Import from page".
 Matching: the job title must contain one of the words under "Roles and
 keywords" in the app's menu (or a default set of software words) and none
 under "Not interested in". For company sites the location must be in
-Switzerland, and in one of "Locations" if that is filled in.
+Switzerland, and in one of "Locations" if that is filled in. Locations
+can be towns or cantons (name or code: "Aargau" or "AG" covers Aarau,
+Baden, Brugg and the other towns listed in the script), compared without
+umlauts, so "Zurich" matches "Zürich" and "Zuerich".
 
 ## Setup (once, about 5 minutes)
 
