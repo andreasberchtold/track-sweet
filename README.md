@@ -28,6 +28,7 @@ core/                shared by all apps
 apps/
   movies/              Movies & Series tracker (TMDB search, ratings)
   habits/              Habits: sets, weekly goals, progress (pull-ups first)
+  jobs/                Jobs: collect postings, judge them, track applications
   _template/           starting point for a new app
 scripts/
   serve.mjs            local web server for trying things out
@@ -225,6 +226,32 @@ What it borrows from behaviour research:
 - **Rewards.** A celebration when the goal is reached, personal best sets,
   milestones (50, 100, 250, ... in total) and the week streak.
 
+## Jobs
+
+Collect job postings, judge them, and track the applications that follow.
+The data is `jobs.json` in the same Drive folder.
+
+- **Adding a job.** On the phone, share a posting from Chrome or a job
+  board's app and pick "Jobs" (the installed app is a share target). On the
+  PC, "Add job" and paste the link, or the link with the posting text.
+  Title, company, workload and the board are read from what was shared and
+  can be corrected before saving. Links already in the list are flagged.
+- **Judging.** New jobs wait under "To judge". "Interesting" or "Not for
+  me" asks for quick reasons (tech stack, domain, salary, ...) and an
+  optional note. The reasons are kept with each job so that a later
+  automated search can learn from them; the menu shows a first tally.
+- **Applications.** Status pipeline: to judge, saved, applied, interview,
+  offer, and the closed ones (rejected, withdrawn, not interesting). Every
+  change is kept in the job's history. Applying sets the date and a
+  follow-up ten days later; due follow-ups show at the top. Each job holds
+  the contact person, the CV and cover letter sent (file name or Drive
+  link), notes and the posting text, so it survives the ad going offline.
+- **Profile.** The menu holds what I am looking for (roles, locations,
+  workload, salary). It is not used yet; it is there for the search.
+
+Automated search is not built yet. When it comes, it adds jobs as "To
+judge", so judging works the same for found and shared postings.
+
 ## Versions
 
 Every app shows its version and deploy time at the bottom of the menu, with
@@ -236,9 +263,10 @@ reloads the app with fresh files. A copy served straight from the folder
 ## Testing
 
 ```
-npm test                          core, Drive backend, sign-in, versions, TMDB, SIMKL import, habits (Node only)
+npm test                          core, Drive backend, sign-in, versions, TMDB, SIMKL import, habits, jobs (Node only)
 python3 tests/e2e_movies.py       movie tracker in Chrome, demo mode
 python3 tests/e2e_habits.py       habit tracker in Chrome, demo mode
+python3 tests/e2e_jobs.py         jobs app in Chrome, demo mode
 python3 tests/e2e_drive_flow.py   sign-in and Drive flow in Chrome
 ```
 
