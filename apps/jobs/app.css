@@ -260,3 +260,33 @@
   align-items: center;
   gap: 8px;
 }
+
+.jb-top {
+  flex-wrap: wrap;
+}
+
+.jb-import {
+  display: grid;
+  gap: 8px;
+}
+
+.jb-pick label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.jb-pick label > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jb-pick input {
+  margin-top: 4px;
+}

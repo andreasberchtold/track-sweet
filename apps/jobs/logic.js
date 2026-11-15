@@ -230,3 +230,93 @@ export function daysBetween(a, b) {
   };
   return Math.round((toUTC(b) - toUTC(a)) / 86_400_000);
 }
+
+// ---- importing many jobs from a copied results page -------------------------
+
+const JOB_LINK = [
+  [/(^|\.)jobs\.ch$/, /\/vacancies\/detail\/|\/stellenangebote\/detail\/|\/offres-emplois\/detail\//],
+  [/(^|\.)jobup\.ch$/, /\/detail\//],
+  [/(^|\.)linkedin\.com$/, /\/jobs\/view\//],
+  [/(^|\.)indeed\.(com|ch)$/, /\/viewjob|\/rc\/clk|\/pagead\/clk|[?&]jk=/],
+  [/(^|\.)jobagent\.ch$/, /\/job\/\d|\/jobs?\/[^/?]+-\d{4,}/],
+  [/(^|\.)glassdoor\.(com|ch)$/, /job-listing|\/partner\/joblisting/],
+];
+const SKIP_TEXT = /^(apply|bewerben|save|speichern|merken|details?|mehr|more|show more|view|ansehen|share|teilen|new|neu|easy apply|promoted)$/i;
+
+function entities(s) {
+  return String(s)
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
+function plain(html) {
+  return entities(String(html ?? '').replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Is this link a job posting (not navigation, filters, company pages)? */
+export function isJobLink(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (!/^https?:$/.test(u.protocol)) return false;
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const path = u.pathname + u.search;
+  for (const [h, pattern] of JOB_LINK) if (h.test(host)) return pattern.test(path);
+  return /\d{5,}/.test(u.pathname) || /\/(jobs?|stellen\w*|vacanc\w*|positions?|offres?|career\w*|karriere)\/[^/]+/i.test(u.pathname);
+}
+
+/**
+ * Jobs in a copied results page. Copying a page in the browser gives HTML
+ * with the links; each job link becomes one job, its text the title. Plain
+ * text (no HTML) still works for lists of links: each link is a job, the
+ * line before it the title.
+ */
+export function jobsFromPaste({ html = '', text = '' } = {}) {
+  const byUrl = new Map();
+  const add = (url, title) => {
+    const clean = cleanUrl(entities(url));
+    if (!isJobLink(clean)) return;
+    title = String(title ?? '').replace(/\s+/g, ' ').trim();
+    if (title.length > 160 || SKIP_TEXT.test(title)) title = '';
+    const prev = byUrl.get(clean);
+    if (!prev) byUrl.set(clean, { url: clean, title, source: sourceOf(clean) });
+    else if (title && (!prev.title || (prev.title.length < 6 && title.length > prev.title.length))) prev.title = title;
+  };
+  if (html) {
+    const re = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = re.exec(html))) {
+      const inner = m[2];
+      const label = plain(inner) || (inner.match(/aria-label="([^"]+)"/i) || [])[1] || '';
+      add(m[1], label);
+    }
+  }
+  if (!byUrl.size) {
+    const lines = String(text ?? '').split(/\r?\n/);
+    let last = '';
+    for (const line of lines) {
+      const url = findUrl(line);
+      const rest = line.replace(/https?:\/\/\S+/g, '').trim();
+      if (url) add(url, rest || last);
+      else if (line.trim()) last = line.trim();
+    }
+  }
+  return [...byUrl.values()].map((j) => ({ ...j, ...splitTitle(j.title) }));
+}
+
+/** "Software Engineer - Example AG" -> title and company, when the share title had both. */
+function splitTitle(title) {
+  if (!title) return { title: '', company: '' };
+  const parsed = fromShared({ title });
+  return { title: parsed.title || title, company: parsed.company };
+}

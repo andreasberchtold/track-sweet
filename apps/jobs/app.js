@@ -47,7 +47,8 @@ function mountApp({ root, store, shell }) {
     'Add job',
   );
   const sourcesBtn = h('button', { class: 'pa-btn jb-sources-btn', type: 'button', onclick: () => openSources() }, 'Sources');
-  mount(root, h('div', { class: 'jb-top' }, sourcesBtn, addBtn), banner, tabs, list);
+  const importBtn = h('button', { class: 'pa-btn', type: 'button', onclick: () => openPasteImport() }, 'Import');
+  mount(root, h('div', { class: 'jb-top' }, sourcesBtn, importBtn, addBtn), banner, tabs, list);
   addDefaultSources();
 
   let seen = -1;
@@ -363,44 +364,61 @@ function mountApp({ root, store, shell }) {
 
   function openSources() {
     const body = h('div', { class: 'jb-sources' });
+    let by = readPref('jb:sourcesBy', 'how');
     const draw = () => {
       const all = store.list(SOURCES);
       const today = todayISO();
+      const log = store.setting('importLog', null);
+      const groups =
+        by === 'how'
+          ? S.GROUPS.map((g) => [g.title, S.sortSources(all, g.test)])
+          : S.KINDS.map(([kind, title]) => [title, S.sortSources(all, kind)]);
+      const seg = segmented(
+        [
+          ['how', 'By import'],
+          ['kind', 'By type'],
+        ],
+        () => by,
+        (v) => {
+          by = v;
+          writePref('jb:sourcesBy', v);
+          draw();
+        },
+      );
       mount(
         body,
         h(
           'p',
           { class: 'pa-muted' },
-          'Where to look. "Open" marks a source as looked at today, so the ones you have not visited for a while come first.',
+          log
+            ? `Last automatic import: ${formatDate(log.at.slice(0, 10))}, ${log.sources.reduce((n, x) => n + (x.added || 0), 0)} new jobs.`
+            : 'Automatic import is not set up yet (see "Imported automatically" below). Manual sources: copy a results page and use "Import".',
         ),
         h(
           'div',
-          { class: 'pa-row pa-row--end' },
+          { class: 'pa-row pa-row--between' },
+          seg.el,
           h('button', { class: 'pa-btn', type: 'button', onclick: () => editSource(null, draw) }, 'Add source'),
         ),
-        S.KINDS.map(([kind, title]) => {
-          const items = S.sortSources(all, kind);
-          return h(
+        groups.map(([title, items]) =>
+          h(
             'section',
             { class: 'jb-sgroup' },
             h('h3', null, `${title} (${items.length})`),
             items.length
-              ? h('ul', { class: 'jb-slist' }, items.map((src) => sourceRow(src, today, draw)))
+              ? h('ul', { class: 'jb-slist' }, items.map((src) => sourceRow(src, today, draw, log)))
               : h('p', { class: 'pa-muted' }, 'None.'),
-          );
-        }),
+          ),
+        ),
       );
     };
     draw();
     shell.sheet({ title: 'Sources', body });
   }
 
-  function sourceRow(src, today, redraw) {
-    const seen = !src.checkedOn
-      ? 'Not opened yet'
-      : src.checkedOn === today
-        ? 'Opened today'
-        : `Opened ${formatDate(src.checkedOn)}`;
+  function sourceRow(src, today, redraw, log) {
+    const run = S.isAuto(src) ? log?.sources?.find((x) => x.id === src.id) : null;
+    const seen = sourceState(src, run, today);
     const meta = [src.field, src.system].filter(Boolean).join(' · ');
     return h(
       'li',
@@ -514,6 +532,124 @@ function mountApp({ root, store, shell }) {
         ),
       ),
     });
+  }
+
+  // ---- importing a copied results page ------------------------------------------
+
+  function openPasteImport() {
+    let found = [];
+    const chosen = new Set();
+    const area = h('textarea', {
+      class: 'pa-input',
+      rows: 4,
+      placeholder: 'Paste here: on a job board\'s results page select all (Ctrl+A), copy (Ctrl+C), then paste',
+    });
+    const results = h('div', { class: 'jb-import' });
+    const addBtn = h('button', { class: 'pa-btn pa-btn--primary', type: 'button', disabled: true, onclick: save }, 'Add jobs');
+
+    area.addEventListener('paste', (event) => {
+      const html = event.clipboardData?.getData('text/html') ?? '';
+      const text = event.clipboardData?.getData('text/plain') ?? '';
+      if (!html) return; // plain text: let it land, the input handler reads it
+      event.preventDefault();
+      area.value = text;
+      read({ html, text });
+    });
+    area.addEventListener('input', () => read({ text: area.value }));
+
+    function read(pasted) {
+      const existing = store.list(JOBS);
+      found = L.jobsFromPaste(pasted).map((j) => ({ ...j, dup: L.findDuplicate(existing, j.url) }));
+      chosen.clear();
+      found.forEach((j, i) => {
+        if (!j.dup) chosen.add(i);
+      });
+      draw();
+    }
+
+    function draw() {
+      addBtn.disabled = !chosen.size;
+      addBtn.textContent = chosen.size === 1 ? 'Add 1 job' : `Add ${chosen.size} jobs`;
+      if (!found.length) {
+        mount(results, area.value.trim() ? h('p', { class: 'pa-muted' }, 'No job links found in what was pasted.') : null);
+        return;
+      }
+      mount(
+        results,
+        h('p', { class: 'pa-muted' }, `${found.length} jobs found. Untick the ones you don't want.`),
+        h(
+          'ul',
+          { class: 'jb-slist' },
+          found.map((j, i) =>
+            h(
+              'li',
+              { class: 'jb-pick' },
+              h(
+                'label',
+                null,
+                h('input', {
+                  type: 'checkbox',
+                  checked: chosen.has(i),
+                  disabled: Boolean(j.dup),
+                  onchange: (e) => {
+                    if (e.target.checked) chosen.add(i);
+                    else chosen.delete(i);
+                    draw();
+                  },
+                }),
+                h(
+                  'span',
+                  null,
+                  h('span', { class: 'jb-card__title' }, j.title || j.url),
+                  h('span', { class: 'pa-muted' }, j.dup ? `Already in the list (${L.statusLabel(j.dup.status, true)})` : [j.company, j.source].filter(Boolean).join(' · ')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    function save() {
+      const today = todayISO();
+      let n = 0;
+      for (const i of chosen) {
+        const j = found[i];
+        store.put(JOBS, {
+          title: j.title,
+          company: j.company || '',
+          url: j.url,
+          source: j.source,
+          location: '',
+          workload: L.findWorkload(j.title),
+          status: 'found',
+          foundOn: today,
+          importedBy: 'paste',
+          history: [{ status: 'found', date: today }],
+        });
+        n += 1;
+      }
+      panel.close();
+      setView('judge');
+      shell.toast(n === 1 ? '1 job added to "To judge"' : `${n} jobs added to "To judge"`);
+    }
+
+    const panel = shell.sheet({
+      title: 'Import from page',
+      body: h(
+        'div',
+        { class: 'pa-form' },
+        h(
+          'p',
+          { class: 'pa-muted' },
+          'For boards that forbid automatic reading (jobs.ch, LinkedIn, Indeed ...): open your search there, copy the whole results page and paste it here. Each job link becomes a job to judge.',
+        ),
+        area,
+        results,
+        h('div', { class: 'pa-row pa-row--end' }, addBtn),
+      ),
+    });
+    area.focus();
   }
 
   // ---- details ----------------------------------------------------------------
@@ -653,7 +789,7 @@ function settingsSection({ store }) {
     'div',
     { class: 'pa-form' },
     h('h3', null, 'What I am looking for'),
-    h('p', { class: 'pa-muted' }, 'Used by the job search once it is added. Saved in jobs.json in your Drive.'),
+    h('p', { class: 'pa-muted' }, 'The automatic import picks jobs whose title has one of the roles and keywords (comma-separated), none of the words to avoid, and, for company sites, one of the locations. Saved in jobs.json in your Drive.'),
     PROFILE_FIELDS.map(([key, label, placeholder]) => {
       const input = h('input', { class: 'pa-input', placeholder, value: profile[key] ?? '', autocomplete: 'off' });
       inputs[key] = input;
@@ -717,4 +853,27 @@ function segmented(options, get, set) {
   const update = () => buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(options[i][0] === get())));
   update();
   return { el: h('div', { class: 'pa-seg' }, buttons), update };
+}
+
+function sourceState(src, run, today) {
+  if (run) return run.error ? `Import failed: ${run.error}` : `Last import: ${run.added} new`;
+  if (S.isAuto(src)) return 'Waiting for the first import';
+  if (!src.checkedOn) return 'Not opened yet';
+  return src.checkedOn === today ? 'Opened today' : `Opened ${formatDate(src.checkedOn)}`;
+}
+
+function readPref(key, fallback) {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writePref(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Only a convenience.
+  }
 }

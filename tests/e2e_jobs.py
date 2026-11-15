@@ -99,10 +99,10 @@ def main():
             page.get_by_role("button", name="Tech stack").click()
             page.get_by_role("button", name="Domain").click()
             shot(page, "2-judge")
-            page.get_by_role("button", name="Save").click()
+            page.get_by_role("button", name="Save", exact=True).click()
             page.locator(".jb-card", has_text="Example Corp").get_by_role("button", name="Not for me").click()
             page.get_by_role("button", name="Agency / recruiter").click()
-            page.get_by_role("button", name="Save").click()
+            page.get_by_role("button", name="Save", exact=True).click()
             expect(page.get_by_text("Nothing to judge right now.")).to_be_visible()
 
             # 6. Apply for the saved one.
@@ -117,7 +117,7 @@ def main():
             page.get_by_label("CV sent").fill("cv-2page.pdf")
             page.get_by_label("Status").select_option("interview")
             shot(page, "3-details", full=True)
-            page.get_by_role("button", name="Save").click()
+            page.get_by_role("button", name="Save", exact=True).click()
             expect(page.locator(".jb-card").first).to_contain_text("Interview")
             expect(status).to_have_text("Saved")
 
@@ -150,45 +150,84 @@ def main():
             expect(status).to_have_text("Saved")
             assert saved(page)["settings"]["profile"]["roles"] == "Software Engineer, .NET, TypeScript"
 
-            # 10. Sources: the built-in list, opening one, adding one.
+            # 10. Sources: grouped by how jobs come in, or by type; opening one, adding one.
             page.get_by_role("button", name="Sources", exact=True).click()
             sheet = page.locator(".pa-sheet")
+            expect(sheet.get_by_role("heading", name="Imported automatically (8)")).to_be_visible()
+            expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Waiting for the first import")
+            jobsch = sheet.locator(".jb-source", has=page.get_by_text("jobs.ch", exact=True))
+            expect(jobsch).to_contain_text("Manual: alert or copy page")
+            shot(page, "5-sources")
+            sheet.get_by_role("button", name="By type").click()
             expect(sheet.get_by_role("heading", name="Job boards (20)")).to_be_visible()
             expect(sheet.locator(".jb-source").first).to_contain_text("★ ")
-            jobsch = sheet.locator(".jb-source", has=page.get_by_text("jobs.ch", exact=True))
-            expect(jobsch).to_contain_text("E-mail alert")
             with context.expect_page() as popup:
-                sheet.locator(".jb-source", has_text="Swisscom").get_by_role("link", name="Open").click()
+                sheet.locator(".jb-source", has_text="Google").get_by_role("link", name="Open").click()
             popup.value.close()
-            expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Opened today")
+            expect(sheet.locator(".jb-source", has_text="Google")).to_contain_text("Opened today")
             sheet.get_by_role("button", name="Add source").click()
             page.get_by_label("Name").fill("Example Robotics")
             page.get_by_label("Link", exact=True).fill("https://example.com/careers")
-            page.get_by_role("button", name="Save").click()
+            page.get_by_role("button", name="Save", exact=True).click()
             expect(page.locator(".jb-source", has_text="Example Robotics")).to_contain_text("Not opened yet")
-            shot(page, "5-sources")
             page.keyboard.press("Escape")
             expect(status).to_have_text("Saved")
             doc = saved(page)
             names = [s["name"] for s in doc["collections"]["sources"]]
             assert "Example Robotics" in names and "Proton" in names, names
+            goo = next(s for s in doc["collections"]["sources"] if s["name"] == "Google")
+            assert goo["checkedOn"] == today.isoformat(), goo
+
+            # 11. After the helper ran: its result per source. Deleted defaults stay deleted.
             swc = next(s for s in doc["collections"]["sources"] if s["name"] == "Swisscom")
-            assert swc["checkedOn"] == today.isoformat(), swc
-            # Deleted defaults stay deleted after a reload.
+            tal = next(s for s in doc["collections"]["sources"] if s["name"] == "talendo.ch")
+            doc["settings"]["importLog"] = {"at": today.isoformat() + "T06:00:00.000Z", "version": 1, "sources": [
+                {"id": swc["id"], "name": "Swisscom", "found": 5, "added": 3, "error": ""},
+                {"id": tal["id"], "name": "talendo.ch", "found": 0, "added": 0, "error": "HTTP 403 from talendo.ch"}]}
             doc["collections"]["sources"] = [s for s in doc["collections"]["sources"] if s["name"] != "Proton"]
             page.evaluate("d => localStorage.setItem('pa:demo:jobs', JSON.stringify({rev: '100', content: d}))", doc)
             page.reload()
             expect(page.locator(".jb-card").first).to_be_visible()
             assert not any(s["name"] == "Proton" for s in saved(page)["collections"]["sources"])
+            page.get_by_role("button", name="Sources", exact=True).click()
+            sheet.get_by_role("button", name="By import").click()
+            expect(sheet.get_by_text("Last automatic import:")).to_contain_text("3 new jobs")
+            expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Last import: 3 new")
+            expect(sheet.locator(".jb-source", has_text="talendo.ch")).to_contain_text("Import failed: HTTP 403")
+            page.keyboard.press("Escape")
 
-            # 11. Dark theme, for the record.
+            # 12. Import from page: a copied results page with several jobs.
+            pasted = """<ul>
+              <li><a href="https://www.jobs.ch/en/vacancies/detail/aaa/?source=list"><h2>Platform Engineer</h2></a>
+                  <a href="https://www.jobs.ch/en/vacancies/detail/aaa/">Apply</a></li>
+              <li><a href="https://www.jobs.ch/en/vacancies/detail/bbb/">Data Engineer 80-100% - Example Bank</a></li>
+              <li><a href="https://www.jobs.ch/en/vacancies/detail/abc/">Senior Software Engineer</a></li>
+              <li><a href="https://www.jobs.ch/en/vacancies/?page=2">Next</a></li></ul>"""
+            page.get_by_role("button", name="Import", exact=True).click()
+            area = page.get_by_placeholder("Paste here", exact=False)
+            area.evaluate("""(el, html) => {
+                const dt = new DataTransfer();
+                dt.setData('text/html', html);
+                dt.setData('text/plain', 'Platform Engineer Data Engineer');
+                el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+            }""", pasted)
+            expect(page.get_by_text("3 jobs found.")).to_be_visible()
+            expect(page.locator(".jb-pick", has_text="Senior Software Engineer")).to_contain_text("Already in the list")
+            shot(page, "6-import")
+            page.get_by_role("button", name="Add 2 jobs").click()
+            expect(page.get_by_role("tab", name="To judge")).to_have_attribute("aria-selected", "true")
+            expect(page.locator(".jb-card")).to_have_count(2)
+            expect(page.locator(".jb-card", has_text="Data Engineer 80-100%")).to_contain_text("Example Bank · 80–100%")
+            expect(status).to_have_text("Saved")
+
+            # 13. Dark theme, for the record.
             dark = browser.new_context(viewport={"width": 412, "height": 915}, device_scale_factor=2,
                                        color_scheme="dark", storage_state=context.storage_state())
             dark.route("**/site.config.js", lambda r: r.fulfill(content_type="text/javascript", body=demo_config))
             dpage = dark.new_page()
             dpage.goto(BASE)
             expect(dpage.locator(".jb-card")).to_have_count(2)
-            shot(dpage, "6-dark", full=True)
+            shot(dpage, "7-dark", full=True)
 
             browser.close()
     finally:
