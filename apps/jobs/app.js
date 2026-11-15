@@ -15,6 +15,7 @@ import * as S from './sources.js';
 const JOBS = 'jobs';
 const SOURCES = 'sources';
 const SEEN_KEY = 'sourcesOffered';
+const UPDATES_KEY = 'sourcesUpdated';
 const VIEW_KEY = 'jb:view';
 const PROFILE_FIELDS = [
   ['roles', 'Roles and keywords', 'e.g. Senior Software Engineer, Fullstack, .NET, TypeScript'],
@@ -353,14 +354,24 @@ function mountApp({ root, store, shell }) {
 
   // ---- sources ----------------------------------------------------------------
 
-  /** Copy new entries of the built-in source list into the file, once each. */
+  /** Copy new entries of the built-in source list into the file, once each, and apply updates to built-in entries. */
   function addDefaultSources() {
     const seen = store.setting(SEEN_KEY, []);
     const fresh = S.newDefaults(seen);
-    if (!fresh.length) return;
-    for (const source of fresh) store.put(SOURCES, { ...source });
-    store.setSetting(SEEN_KEY, [...seen, ...fresh.map((x) => x.id)]);
+    if (fresh.length) {
+      for (const source of fresh) store.put(SOURCES, { ...source });
+      store.setSetting(SEEN_KEY, [...seen, ...fresh.map((x) => x.id)]);
+    }
+    const applied = store.setting(UPDATES_KEY, []);
+    const updates = S.pendingUpdates(applied);
+    if (!updates.length) return;
+    for (const u of updates) {
+      const current = store.get(SOURCES, u.id);
+      if (current) store.put(SOURCES, { ...current, ...u.fields });
+    }
+    store.setSetting(UPDATES_KEY, [...applied, ...updates.map((u) => `${u.id}@${u.v}`)]);
   }
+
 
   function openSources() {
     const body = h('div', { class: 'jb-sources' });

@@ -13,7 +13,9 @@ list, and only these kinds of sites:
 | Kind | Example | How |
 | --- | --- | --- |
 | Greenhouse | Proton | Greenhouse's official public job board API |
-| Workday | Swisscom, Temenos, Zühlke | The JSON search the careers page itself uses |
+| Workday | Swisscom, Temenos, Zühlke, Varian | The JSON search the careers page itself uses |
+| Phenom | Roche, Siemens Healthineers | The job data embedded in the search page |
+| Novartis | Novartis | The search result page, filtered to Switzerland |
 | SuccessFactors career sites | Swiss Re, Schindler | The search result page |
 | Boards that allow reading | talendo.ch, jobs.nzz.ch | One listing page, job links with an id |
 

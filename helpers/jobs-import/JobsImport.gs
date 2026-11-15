@@ -40,6 +40,10 @@ function readerFor(url) {
   if ((m = u.match(/^https:\/\/(careers\.swissre\.com|job\.schindler\.com)/))) {
     return { type: 'csb', base: 'https://' + m[1] };
   }
+  if ((m = u.match(/^https:\/\/(careers\.roche\.com|careers\.siemens-healthineers\.com)\//))) {
+    return { type: 'phenom', base: 'https://' + m[1] + '/global/en' };
+  }
+  if (/^https:\/\/www\.novartis\.com\/careers/.test(u)) return { type: 'novartis', base: 'https://www.novartis.com' };
   if (/^https:\/\/(www\.)?talendo\.ch\//.test(u)) return { type: 'links', page: 'https://talendo.ch/en', swiss: true };
   if (/^https:\/\/jobs\.nzz\.ch\//.test(u)) return { type: 'links', page: 'https://jobs.nzz.ch/job/alle-jobs-im-kanton-Z%C3%BCrich', swiss: true };
   return null;
@@ -85,6 +89,66 @@ function parseCsb(html, base) {
     out.push({ title: text(tag), url: url, location: text(loc) });
   }
   return out;
+}
+
+/**
+ * Phenom career sites (Roche, Siemens Healthineers): the search page embeds
+ * its results as JSON ("phApp.ddo"), under eagerLoadRefineSearch.data.jobs.
+ */
+function parsePhenom(html, base) {
+  var start = html.indexOf('phApp.ddo');
+  if (start === -1) return [];
+  var open = html.indexOf('{', start);
+  var data;
+  try {
+    data = JSON.parse(balanced(html, open));
+  } catch (e) {
+    return [];
+  }
+  var jobs = (data && data.eagerLoadRefineSearch && data.eagerLoadRefineSearch.data && data.eagerLoadRefineSearch.data.jobs) || [];
+  return jobs.map(function (j) {
+    var id = j.jobSeqNo || j.jobId || j.reqId || '';
+    var slug = String(j.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    var where = [j.city, j.state, j.country].filter(Boolean).join(', ') || j.location || '';
+    return { title: j.title || '', url: id ? base + '/job/' + id + '/' + slug : '', location: where };
+  }).filter(function (j) { return j.url; });
+}
+
+/** Novartis: search result rows link to /careers/career-search/job/details/req-<id>-<slug>. */
+function parseNovartis(html, base) {
+  var out = [];
+  var seen = {};
+  var rows = html.split(/<tr\b/i);
+  rows.forEach(function (row) {
+    var m = row.match(/<a\b[^>]*href="([^"]*\/careers\/career-search\/job\/details\/req-[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!m) return;
+    var url = absolute(decodeEntities(m[1]), base);
+    if (seen[url]) return;
+    seen[url] = true;
+    var rowText = text(row.replace(/^[^>]*>/, ''));
+    var title = text(m[2]);
+    out.push({ title: title, url: url, location: rowText.replace(title, '').trim() });
+  });
+  return out;
+}
+
+/** The JSON object starting at `open` (a "{"), with strings and nesting respected. */
+function balanced(s, open) {
+  var depth = 0;
+  var inStr = false;
+  for (var i = open; i < s.length; i++) {
+    var c = s.charAt(i);
+    if (inStr) {
+      if (c === '\\') i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return s.slice(open, i + 1);
+    }
+  }
+  throw new Error('unbalanced JSON');
 }
 
 /**
@@ -293,6 +357,18 @@ function fetchSource_(source, profile) {
       var url = reader.base + '/search/?q=' + encodeURIComponent(term) + '&sortColumn=referencedate&sortDirection=desc';
       jobs = jobs.concat(parseCsb(getText_(url), reader.base));
       Utilities.sleep(1500);
+    });
+  } else if (reader.type === 'phenom') {
+    terms.forEach(function (term) {
+      var url = reader.base + '/search-results?keywords=' + encodeURIComponent(term) + '&location=Switzerland';
+      jobs = jobs.concat(parsePhenom(getText_(url), reader.base));
+      Utilities.sleep(2000);
+    });
+  } else if (reader.type === 'novartis') {
+    terms.forEach(function (term) {
+      var url = reader.base + '/careers/career-search?search_api_fulltext=' + encodeURIComponent(term) + '&country%5B0%5D=LOC_CH';
+      jobs = jobs.concat(parseNovartis(getText_(url), reader.base));
+      Utilities.sleep(2000);
     });
   } else if (reader.type === 'links') {
     var page = reader.page.replace('SEARCH', encodeURIComponent(terms[0]));
