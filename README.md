@@ -35,6 +35,8 @@ scripts/
   new-app.mjs          creates a new app from the template
   simkl-export.mjs     downloads my SIMKL lists for the import
   make-icons.py        draws home-screen icons (optional, needs Pillow)
+helpers/
+  jobs-import/         daily job import for the Jobs app (Google Apps Script)
 tests/                 automated checks (see "Testing")
 ```
 
@@ -246,19 +248,25 @@ The data is `jobs.json` in the same Drive folder.
   follow-up ten days later; due follow-ups show at the top. Each job holds
   the contact person, the CV and cover letter sent (file name or Drive
   link), notes and the posting text, so it survives the ad going offline.
-- **Sources.** "Sources" lists where to look: about 20 Swiss job boards
-  and 40 company career sites, each with how it can be followed (e-mail
-  alert, by hand, or readable by a later search helper) and when it was
-  last opened. "Open" marks it as looked at today, so the ones not visited
-  for a while come first. Entries can be edited, starred, set to "not
-  following", deleted or added. The starting list is in
-  `apps/jobs/sources.js`; new entries added there reach the app, deleted
-  ones stay deleted.
+- **Sources.** "Sources" lists about 20 Swiss job boards and 40 company
+  career sites, grouped by how their jobs get into the app (or by type):
+  imported automatically, manual (e-mail alert or "Import from page"),
+  manual by hand, not checked yet. Automatic sources show the result of
+  the last import; manual ones when they were last opened. Entries can be
+  edited, starred, set to "not following", deleted or added. The starting
+  list is in `apps/jobs/sources.js`; new entries added there reach the
+  app, deleted ones stay deleted.
+- **Automatic import.** A Google Apps Script in my account
+  (`helpers/jobs-import/`, setup in its README) reads the automatic
+  sources every morning and adds matching jobs as "To judge".
+- **Import from page.** For boards that forbid bots: open the search
+  there, select all, copy, and paste into "Import". Every job link on the
+  page becomes a job to review and add; ones already in the list are
+  marked.
 - **Profile.** The menu holds what I am looking for (roles, locations,
-  workload, salary). It is not used yet; it is there for the search.
+  workload, salary). The automatic import uses the roles, the words to
+  avoid and the locations to pick jobs.
 
-Automated search is not built yet. When it comes, it adds jobs as "To
-judge", so judging works the same for found and shared postings.
 
 ## Versions
 
@@ -271,7 +279,7 @@ reloads the app with fresh files. A copy served straight from the folder
 ## Testing
 
 ```
-npm test                          core, Drive backend, sign-in, versions, TMDB, SIMKL import, habits, jobs (Node only)
+npm test                          core, Drive backend, sign-in, versions, TMDB, SIMKL import, habits, jobs, jobs import helper (Node only)
 python3 tests/e2e_movies.py       movie tracker in Chrome, demo mode
 python3 tests/e2e_habits.py       habit tracker in Chrome, demo mode
 python3 tests/e2e_jobs.py         jobs app in Chrome, demo mode

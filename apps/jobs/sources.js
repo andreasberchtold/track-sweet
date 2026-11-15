@@ -14,12 +14,38 @@
 // Checked on 2026-11-15 (robots.txt, terms of use, careers page).
 
 export const ACCESS = {
-  read: 'Helper may read',
-  feed: 'Job feed',
-  alert: 'E-mail alert',
-  manual: 'By hand',
+  read: 'Automatic (site allows)',
+  feed: 'Automatic (job feed)',
+  alert: 'Manual: alert or copy page',
+  manual: 'Manual: by hand',
   check: 'To check',
 };
+
+/** Groups of the source list by how jobs get into the app. */
+export const GROUPS = [
+  { id: 'auto', title: 'Imported automatically', test: (s) => isAuto(s) },
+  { id: 'alert', title: 'Manual: e-mail alert or "Import from page"', test: (s) => !isAuto(s) && ['alert', 'read', 'feed'].includes(s.access) },
+  { id: 'manual', title: 'Manual: look by hand', test: (s) => s.access === 'manual' },
+  { id: 'check', title: 'Not checked yet', test: (s) => s.access === 'check' || !(s.access in ACCESS) },
+];
+
+/**
+ * Which reader of the import helper fits a link, or null. Must agree with
+ * readerFor in helpers/jobs-import/JobsImport.gs (a test checks this).
+ */
+export function readerFor(url) {
+  const u = String(url ?? '');
+  if (/^https:\/\/(?:job-boards|boards)(\.eu)?\.greenhouse\.io\/[A-Za-z0-9_-]+/.test(u)) return 'greenhouse';
+  if (/^https:\/\/[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com\/(?:[a-z]{2}-[A-Z]{2}\/)?[A-Za-z0-9_-]+/.test(u)) return 'workday';
+  if (/^https:\/\/(careers\.swissre\.com|job\.schindler\.com)/.test(u)) return 'csb';
+  if (/^https:\/\/(www\.)?talendo\.ch\//.test(u) || /^https:\/\/jobs\.nzz\.ch\//.test(u)) return 'links';
+  return null;
+}
+
+/** Imported by the helper: marked automatic, followed, and a reader exists. */
+export function isAuto(source) {
+  return !source.skip && ['read', 'feed'].includes(source.access) && Boolean(readerFor(source.url));
+}
 
 export const KINDS = [
   ['board', 'Job boards'],
@@ -106,10 +132,14 @@ export function newDefaults(seen = []) {
   return DEFAULT_SOURCES.filter((s) => !known.has(s.id));
 }
 
-/** Sources of one kind: followed ones first, favourites first, then the longest unopened, then by name. */
-export function sortSources(sources, kind) {
+/**
+ * Sources that pass `test` (a kind such as 'board', or a function): followed
+ * ones first, favourites first, then the longest unopened, then by name.
+ */
+export function sortSources(sources, test) {
+  const keep = typeof test === 'function' ? test : (s) => s.kind === test;
   return sources
-    .filter((s) => s.kind === kind)
+    .filter(keep)
     .sort(
       (a, b) =>
         Number(Boolean(a.skip)) - Number(Boolean(b.skip)) ||

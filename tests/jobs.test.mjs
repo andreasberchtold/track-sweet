@@ -166,3 +166,47 @@ test('sortSources puts favourites first among followed sources', () => {
   ];
   assert.deepEqual(sortSources(list, 'board').map((s) => s.name), ['Z', 'A', 'S']);
 });
+
+import { isJobLink, jobsFromPaste } from '../apps/jobs/logic.js';
+import { GROUPS, isAuto } from '../apps/jobs/sources.js';
+
+test('isJobLink tells postings from navigation', () => {
+  assert.ok(isJobLink('https://www.jobs.ch/en/vacancies/detail/abc/'));
+  assert.ok(!isJobLink('https://www.jobs.ch/en/vacancies/?term=software'));
+  assert.ok(isJobLink('https://www.linkedin.com/jobs/view/123/'));
+  assert.ok(!isJobLink('https://www.linkedin.com/company/example/'));
+  assert.ok(isJobLink('https://ch.indeed.com/viewjob?jk=abc'));
+  assert.ok(isJobLink('https://careers.example.ch/job/12345'));
+  assert.ok(!isJobLink('https://example.ch/about'));
+  assert.ok(!isJobLink('mailto:x@example.ch'));
+});
+
+test('jobsFromPaste reads job links from copied HTML', () => {
+  const html = `<div><a href="https://www.jobs.ch/en/vacancies/detail/a1/?source=list"><h2>Software Engineer</h2></a>
+    <a href="https://www.jobs.ch/en/vacancies/detail/a1/">Apply</a>
+    <a href="https://www.jobs.ch/en/vacancies/?page=2">2</a>
+    <a href="https://www.jobs.ch/en/vacancies/detail/b2/">Data Engineer 80-100% - Example AG</a></div>`;
+  const jobs = jobsFromPaste({ html, text: 'ignored' });
+  assert.deepEqual(jobs.map((j) => j.title), ['Software Engineer', 'Data Engineer 80-100%']);
+  assert.equal(jobs[0].url, 'https://www.jobs.ch/en/vacancies/detail/a1/');
+  assert.equal(jobs[1].company, 'Example AG');
+  assert.equal(jobs[0].source, 'jobs.ch');
+});
+
+test('jobsFromPaste falls back to links in plain text', () => {
+  const jobs = jobsFromPaste({ text: 'Backend Engineer\nhttps://careers.example.ch/job/12345\n\nhttps://example.ch/about' });
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].title, 'Backend Engineer');
+});
+
+test('every source lands in exactly one group', () => {
+  const samples = [
+    { access: 'feed', url: 'https://acme.wd3.myworkdayjobs.com/Careers' },
+    { access: 'feed', url: 'https://www.sonova.com/en/careers' },
+    { access: 'alert', url: 'https://www.jobs.ch/' },
+    { access: 'manual', url: 'https://www.job-room.ch/' },
+    { access: 'check', url: 'https://www.google.com/' },
+  ];
+  assert.deepEqual(samples.map((s) => GROUPS.filter((g) => g.test(s)).map((g) => g.id)), [['auto'], ['alert'], ['alert'], ['manual'], ['check']]);
+  assert.ok(isAuto(samples[0]) && !isAuto({ ...samples[0], skip: true }));
+});
