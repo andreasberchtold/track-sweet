@@ -10,8 +10,11 @@ import { startApp } from '../../core/shell.js';
 import { h, icon, ICONS, mount } from '../../core/dom.js';
 import { formatDate, todayISO } from '../../core/util.js';
 import * as L from './logic.js';
+import * as S from './sources.js';
 
 const JOBS = 'jobs';
+const SOURCES = 'sources';
+const SEEN_KEY = 'sourcesOffered';
 const VIEW_KEY = 'jb:view';
 const PROFILE_FIELDS = [
   ['roles', 'Roles and keywords', 'e.g. Senior Software Engineer, Fullstack, .NET, TypeScript'],
@@ -26,7 +29,7 @@ startApp({
   name: 'Jobs',
   schemaVersion: 1,
   migrations: {},
-  collections: [JOBS],
+  collections: [JOBS, SOURCES],
   mount: mountApp,
   settings: settingsSection,
   about: 'Collect postings, judge them, track applications.',
@@ -43,7 +46,9 @@ function mountApp({ root, store, shell }) {
     icon(ICONS.plus, 18),
     'Add job',
   );
-  mount(root, h('div', { class: 'jb-top' }, addBtn), banner, tabs, list);
+  const sourcesBtn = h('button', { class: 'pa-btn jb-sources-btn', type: 'button', onclick: () => openSources() }, 'Sources');
+  mount(root, h('div', { class: 'jb-top' }, sourcesBtn, addBtn), banner, tabs, list);
+  addDefaultSources();
 
   let seen = -1;
   store.subscribe(() => {
@@ -343,6 +348,172 @@ function mountApp({ root, store, shell }) {
       ),
     });
     (shared ? fields.inputs.title : paste).focus();
+  }
+
+  // ---- sources ----------------------------------------------------------------
+
+  /** Copy new entries of the built-in source list into the file, once each. */
+  function addDefaultSources() {
+    const seen = store.setting(SEEN_KEY, []);
+    const fresh = S.newDefaults(seen);
+    if (!fresh.length) return;
+    for (const source of fresh) store.put(SOURCES, { ...source });
+    store.setSetting(SEEN_KEY, [...seen, ...fresh.map((x) => x.id)]);
+  }
+
+  function openSources() {
+    const body = h('div', { class: 'jb-sources' });
+    const draw = () => {
+      const all = store.list(SOURCES);
+      const today = todayISO();
+      mount(
+        body,
+        h(
+          'p',
+          { class: 'pa-muted' },
+          'Where to look. "Open" marks a source as looked at today, so the ones you have not visited for a while come first.',
+        ),
+        h(
+          'div',
+          { class: 'pa-row pa-row--end' },
+          h('button', { class: 'pa-btn', type: 'button', onclick: () => editSource(null, draw) }, 'Add source'),
+        ),
+        S.KINDS.map(([kind, title]) => {
+          const items = S.sortSources(all, kind);
+          return h(
+            'section',
+            { class: 'jb-sgroup' },
+            h('h3', null, `${title} (${items.length})`),
+            items.length
+              ? h('ul', { class: 'jb-slist' }, items.map((src) => sourceRow(src, today, draw)))
+              : h('p', { class: 'pa-muted' }, 'None.'),
+          );
+        }),
+      );
+    };
+    draw();
+    shell.sheet({ title: 'Sources', body });
+  }
+
+  function sourceRow(src, today, redraw) {
+    const seen = !src.checkedOn
+      ? 'Not opened yet'
+      : src.checkedOn === today
+        ? 'Opened today'
+        : `Opened ${formatDate(src.checkedOn)}`;
+    const meta = [src.field, src.system].filter(Boolean).join(' · ');
+    return h(
+      'li',
+      { class: `jb-source${src.skip ? ' jb-source--skip' : ''}` },
+      h(
+        'button',
+        { class: 'jb-card__main', type: 'button', onclick: () => editSource(src, redraw) },
+        h('span', { class: 'jb-card__title' }, src.star ? `★ ${src.name}` : src.name),
+        meta && h('span', { class: 'jb-card__meta' }, meta),
+        h(
+          'span',
+          { class: 'jb-card__extra' },
+          h('span', { class: 'jb-chip', dataset: { access: src.access } }, S.ACCESS[src.access] ?? src.access),
+          h('span', { class: 'pa-muted' }, src.skip ? 'Not followed' : seen),
+        ),
+      ),
+      src.url &&
+        h(
+          'a',
+          {
+            class: 'pa-btn pa-btn--small',
+            href: src.url,
+            target: '_blank',
+            rel: 'noopener',
+            onclick: () => {
+              store.put(SOURCES, { ...src, checkedOn: todayISO() });
+              setTimeout(redraw, 0);
+            },
+          },
+          'Open',
+        ),
+    );
+  }
+
+  function editSource(src, redraw) {
+    const isNew = !src;
+    const value = src ?? { kind: 'company', access: 'check', name: '', url: '', field: '', system: '', notes: '' };
+    const input = (key, opts = {}) =>
+      h(opts.rows ? 'textarea' : 'input', {
+        class: 'pa-input',
+        type: opts.type ?? 'text',
+        rows: opts.rows,
+        value: value[key] ?? '',
+        placeholder: opts.placeholder ?? '',
+        autocomplete: 'off',
+      });
+    const name = input('name');
+    const url = input('url', { type: 'url', placeholder: 'https://' });
+    const fieldIn = input('field', { placeholder: 'e.g. Bank, Software' });
+    const system = input('system', { placeholder: 'e.g. Workday' });
+    const notes = input('notes', { rows: 2 });
+    const kind = h('select', { class: 'pa-input' }, S.KINDS.map(([k, label]) => h('option', { value: k, selected: k === value.kind }, label.replace(/s$/, ''))));
+    const access = h('select', { class: 'pa-input' }, Object.entries(S.ACCESS).map(([k, label]) => h('option', { value: k, selected: k === value.access }, label)));
+    const skip = h('input', { type: 'checkbox', checked: Boolean(value.skip) });
+    const star = h('input', { type: 'checkbox', checked: Boolean(value.star) });
+    const panel = shell.sheet({
+      title: isNew ? 'Add source' : value.name,
+      body: h(
+        'form',
+        {
+          class: 'pa-form',
+          onsubmit: (event) => {
+            event.preventDefault();
+            if (!name.value.trim()) {
+              shell.toast('Give the source a name');
+              return;
+            }
+            store.put(SOURCES, {
+              ...value,
+              name: name.value.trim(),
+              url: url.value.trim(),
+              field: fieldIn.value.trim(),
+              system: system.value.trim(),
+              notes: notes.value.trim(),
+              kind: kind.value,
+              access: access.value,
+              skip: skip.checked,
+              star: star.checked,
+            });
+            panel.close();
+            redraw();
+          },
+        },
+        field('Name', name),
+        field('Link', url),
+        h('div', { class: 'jb-pair' }, field('Type', kind), field('How to follow it', access)),
+        h('div', { class: 'jb-pair' }, field('Field', fieldIn), field('Job system', system)),
+        field('Notes', notes),
+        h('label', { class: 'jb-check' }, star, ' Favourite (listed first)'),
+        h('label', { class: 'jb-check' }, skip, ' Not following this one'),
+        h(
+          'div',
+          { class: 'pa-row pa-row--between' },
+          isNew
+            ? h('span')
+            : h(
+                'button',
+                {
+                  class: 'pa-btn pa-btn--danger',
+                  type: 'button',
+                  onclick: () => {
+                    store.remove(SOURCES, value.id);
+                    panel.close();
+                    redraw();
+                    shell.toast('Source deleted', { action: { label: 'Undo', run: () => { store.put(SOURCES, value); redraw(); } } });
+                  },
+                },
+                'Delete',
+              ),
+          h('button', { class: 'pa-btn pa-btn--primary', type: 'submit' }, 'Save'),
+        ),
+      ),
+    });
   }
 
   // ---- details ----------------------------------------------------------------

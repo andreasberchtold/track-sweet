@@ -246,6 +246,14 @@ The data is `jobs.json` in the same Drive folder.
   follow-up ten days later; due follow-ups show at the top. Each job holds
   the contact person, the CV and cover letter sent (file name or Drive
   link), notes and the posting text, so it survives the ad going offline.
+- **Sources.** "Sources" lists where to look: about 20 Swiss job boards
+  and 40 company career sites, each with how it can be followed (e-mail
+  alert, by hand, or readable by a later search helper) and when it was
+  last opened. "Open" marks it as looked at today, so the ones not visited
+  for a while come first. Entries can be edited, starred, set to "not
+  following", deleted or added. The starting list is in
+  `apps/jobs/sources.js`; new entries added there reach the app, deleted
+  ones stay deleted.
 - **Profile.** The menu holds what I am looking for (roles, locations,
   workload, salary). It is not used yet; it is there for the search.
 
