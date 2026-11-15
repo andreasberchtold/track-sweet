@@ -1,0 +1,219 @@
+/* Styles for the Jobs app only. Shared styles live in core/core.css. */
+
+:root {
+  --accent: #1f6a5a;
+  --accent-ink: #ffffff;
+  --st-found: #6b6580;
+  --st-saved: #1f6a5a;
+  --st-applied: #2f5aa8;
+  --st-interview: #8a4fb0;
+  --st-offer: #2e7d32;
+  --st-closed: #8a8496;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #7fd6bf;
+    --accent-ink: #0c2620;
+    --st-found: #a59fb8;
+    --st-saved: #7fd6bf;
+    --st-applied: #9fb8ff;
+    --st-interview: #d4a8f0;
+    --st-offer: #96dc9a;
+    --st-closed: #7d768f;
+  }
+}
+
+.jb-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.jb-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jb-tabs {
+  display: flex;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.jb-tabs .pa-seg__option {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 6px;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.jb-count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.jb-due {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-m);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.jb-due ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.jb-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+}
+
+.jb-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jb-empty {
+  padding: 24px 4px;
+  text-align: center;
+}
+
+.jb-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-m);
+  border-left: 4px solid var(--st-found);
+  background: var(--surface);
+}
+
+.jb-card[data-status='saved'] { border-left-color: var(--st-saved); }
+.jb-card[data-status='applied'] { border-left-color: var(--st-applied); }
+.jb-card[data-status='interview'] { border-left-color: var(--st-interview); }
+.jb-card[data-status='offer'] { border-left-color: var(--st-offer); }
+.jb-card[data-status='rejected'],
+.jb-card[data-status='withdrawn'],
+.jb-card[data-status='dismissed'] { border-left-color: var(--st-closed); }
+
+.jb-card__main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.jb-card__title {
+  font-weight: 650;
+}
+
+.jb-card__meta {
+  color: var(--ink-2);
+}
+
+.jb-card__extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+}
+
+.jb-card__reasons {
+  font-size: 0.85rem;
+}
+
+.jb-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.jb-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--st-found);
+}
+
+.jb-chip[data-status='saved'] { color: var(--st-saved); }
+.jb-chip[data-status='applied'] { color: var(--st-applied); }
+.jb-chip[data-status='interview'] { color: var(--st-interview); }
+.jb-chip[data-status='offer'] { color: var(--st-offer); }
+.jb-chip[data-status='rejected'],
+.jb-chip[data-status='withdrawn'],
+.jb-chip[data-status='dismissed'] { color: var(--st-closed); }
+
+.jb-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jb-reason {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.jb-reason[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.jb-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.jb-warn {
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.jb-history {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
