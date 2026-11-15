@@ -125,3 +125,44 @@ test('viewOf, reasonCounts and addDays', () => {
   );
   assert.equal(addDays('2026-12-28', 10), '2027-01-07');
 });
+
+import { DEFAULT_SOURCES, ACCESS, newDefaults, sortSources } from '../apps/jobs/sources.js';
+
+test('default sources are well formed and unique', () => {
+  const ids = new Set();
+  for (const s of DEFAULT_SOURCES) {
+    assert.ok(s.id.startsWith('seed:') && !ids.has(s.id), s.id);
+    ids.add(s.id);
+    assert.ok(['board', 'company'].includes(s.kind), s.id);
+    assert.ok(s.access in ACCESS, s.id);
+    assert.match(s.url, /^https:\/\//, s.id);
+  }
+});
+
+test('newDefaults skips sources offered before, even if deleted since', () => {
+  const all = newDefaults([]);
+  assert.equal(all.length, DEFAULT_SOURCES.length);
+  const rest = newDefaults(['seed:jobs-ch', 'seed:proton']);
+  assert.equal(rest.length, DEFAULT_SOURCES.length - 2);
+  assert.ok(!rest.some((s) => s.id === 'seed:jobs-ch'));
+});
+
+test('sortSources: followed first, longest unopened first, then by name', () => {
+  const list = [
+    { kind: 'board', name: 'B', checkedOn: '2026-11-10' },
+    { kind: 'board', name: 'A', checkedOn: '2026-11-10' },
+    { kind: 'board', name: 'C' },
+    { kind: 'board', name: 'D', skip: true },
+    { kind: 'company', name: 'E' },
+  ];
+  assert.deepEqual(sortSources(list, 'board').map((s) => s.name), ['C', 'A', 'B', 'D']);
+});
+
+test('sortSources puts favourites first among followed sources', () => {
+  const list = [
+    { kind: 'board', name: 'A' },
+    { kind: 'board', name: 'Z', star: true, checkedOn: '2026-11-15' },
+    { kind: 'board', name: 'S', star: true, skip: true },
+  ];
+  assert.deepEqual(sortSources(list, 'board').map((s) => s.name), ['Z', 'A', 'S']);
+});

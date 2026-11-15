@@ -150,14 +150,45 @@ def main():
             expect(status).to_have_text("Saved")
             assert saved(page)["settings"]["profile"]["roles"] == "Software Engineer, .NET, TypeScript"
 
-            # 10. Dark theme, for the record.
+            # 10. Sources: the built-in list, opening one, adding one.
+            page.get_by_role("button", name="Sources", exact=True).click()
+            sheet = page.locator(".pa-sheet")
+            expect(sheet.get_by_role("heading", name="Job boards (20)")).to_be_visible()
+            expect(sheet.locator(".jb-source").first).to_contain_text("★ ")
+            jobsch = sheet.locator(".jb-source", has=page.get_by_text("jobs.ch", exact=True))
+            expect(jobsch).to_contain_text("E-mail alert")
+            with context.expect_page() as popup:
+                sheet.locator(".jb-source", has_text="Swisscom").get_by_role("link", name="Open").click()
+            popup.value.close()
+            expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Opened today")
+            sheet.get_by_role("button", name="Add source").click()
+            page.get_by_label("Name").fill("Example Robotics")
+            page.get_by_label("Link", exact=True).fill("https://example.com/careers")
+            page.get_by_role("button", name="Save").click()
+            expect(page.locator(".jb-source", has_text="Example Robotics")).to_contain_text("Not opened yet")
+            shot(page, "5-sources")
+            page.keyboard.press("Escape")
+            expect(status).to_have_text("Saved")
+            doc = saved(page)
+            names = [s["name"] for s in doc["collections"]["sources"]]
+            assert "Example Robotics" in names and "Proton" in names, names
+            swc = next(s for s in doc["collections"]["sources"] if s["name"] == "Swisscom")
+            assert swc["checkedOn"] == today.isoformat(), swc
+            # Deleted defaults stay deleted after a reload.
+            doc["collections"]["sources"] = [s for s in doc["collections"]["sources"] if s["name"] != "Proton"]
+            page.evaluate("d => localStorage.setItem('pa:demo:jobs', JSON.stringify({rev: '100', content: d}))", doc)
+            page.reload()
+            expect(page.locator(".jb-card").first).to_be_visible()
+            assert not any(s["name"] == "Proton" for s in saved(page)["collections"]["sources"])
+
+            # 11. Dark theme, for the record.
             dark = browser.new_context(viewport={"width": 412, "height": 915}, device_scale_factor=2,
                                        color_scheme="dark", storage_state=context.storage_state())
             dark.route("**/site.config.js", lambda r: r.fulfill(content_type="text/javascript", body=demo_config))
             dpage = dark.new_page()
             dpage.goto(BASE)
             expect(dpage.locator(".jb-card")).to_have_count(2)
-            shot(dpage, "5-dark", full=True)
+            shot(dpage, "6-dark", full=True)
 
             browser.close()
     finally:
