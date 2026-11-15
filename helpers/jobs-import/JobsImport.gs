@@ -21,7 +21,39 @@ var IMPORT_VERSION = 1;
 var DRIVE_FOLDER = 'Personal Apps';
 var FILE_NAME = 'jobs.json';
 var DEFAULT_TERMS = ['software', 'developer', 'entwickler', 'engineer', 'ingenieur', 'fullstack', 'full stack', 'full-stack', 'backend', 'frontend', 'devops', 'cloud', 'architect', '.net', 'data'];
-var SWISS_PLACES = ['switzerland', 'schweiz', 'suisse', 'svizzera', ', ch', ' ch,', 'zürich', 'zurich', 'zuerich', 'winterthur', 'baden', 'zug', 'basel', 'bern', 'luzern', 'lucerne', 'aarau', 'st. gallen', 'geneva', 'genève', 'geneve', 'lausanne', 'schlieren', 'dübendorf', 'wallisellen', 'kloten', 'rotkreuz', 'ebikon', 'thalwil', 'remote'];
+var SWISS_WORDS = ['switzerland', 'schweiz', 'suisse', 'svizzera', 'ch', 'remote'];
+
+// Cantons with their names (de / fr / it / en), code and the towns that job
+// ads name most often. A canton in "Locations" matches a job in any of its
+// towns. Spellings are compared without umlauts or accents (see placeKey).
+var CANTONS = [
+  { code: 'zh', names: ['zurich', 'kanton zurich'], towns: ['zurich', 'winterthur', 'uster', 'dubendorf', 'dietikon', 'wetzikon', 'wadenswil', 'kloten', 'horgen', 'bulach', 'schlieren', 'opfikon', 'glattbrugg', 'wallisellen', 'regensdorf', 'adliswil', 'thalwil', 'volketswil', 'illnau-effretikon', 'effretikon', 'meilen', 'kusnacht', 'stafa', 'richterswil', 'ruti', 'hinwil', 'affoltern am albis', 'urdorf', 'ruschlikon', 'zollikon', 'kilchberg', 'oerlikon', 'altstetten', 'glattpark', 'embrach', 'dielsdorf', 'bassersdorf', 'brüttisellen', 'bruttisellen', 'fallanden', 'maur', 'pfaffikon zh', 'oberrieden', 'langnau am albis', 'birmensdorf'] },
+  { code: 'ag', names: ['aargau', 'argovie', 'argovia'], towns: ['aarau', 'baden', 'wettingen', 'wohlen', 'brugg', 'lenzburg', 'rheinfelden', 'zofingen', 'spreitenbach', 'oftringen', 'neuenhof', 'dattwil', 'baden-dattwil', 'windisch', 'suhr', 'buchs ag', 'muri', 'bremgarten', 'mellingen', 'birr', 'turgi', 'wurenlingen', 'wurenlos', 'villmergen', 'frick', 'mohlin', 'kaiseraugst', 'zurzach', 'bad zurzach', 'klingnau', 'dottikon', 'hunzenschwil', 'seon', 'menziken', 'reinach ag', 'aarburg', 'rothrist', 'killwangen', 'dietwil', 'berikon', 'widen', 'othmarsingen', 'mägenwil', 'magenwil', 'fislisbach', 'obersiggenthal', 'nussbaumen', 'gebenstorf', 'stein ag'] },
+  { code: 'zg', names: ['zug', 'zoug'], towns: ['zug', 'baar', 'cham', 'steinhausen', 'rotkreuz', 'risch', 'hunenberg', 'unterageri', 'oberageri', 'menzingen', 'neuheim'] },
+  { code: 'lu', names: ['luzern', 'lucerne', 'lucerna'], towns: ['luzern', 'lucerne', 'emmen', 'kriens', 'horw', 'ebikon', 'root', 'sursee', 'littau', 'meggen', 'hochdorf', 'willisau', 'buchrain', 'dierikon', 'rothenburg'] },
+  { code: 'bs', names: ['basel-stadt', 'bale-ville'], towns: ['basel', 'bale', 'basle', 'riehen'] },
+  { code: 'bl', names: ['basel-landschaft', 'baselland', 'bale-campagne'], towns: ['liestal', 'allschwil', 'reinach bl', 'muttenz', 'pratteln', 'binningen', 'munchenstein', 'birsfelden', 'oberwil', 'arlesheim', 'aesch', 'sissach'] },
+  { code: 'so', names: ['solothurn', 'soleure'], towns: ['solothurn', 'olten', 'grenchen', 'zuchwil', 'dornach', 'balsthal', 'oensingen', 'egerkingen', 'gerlafingen', 'biberist', 'derendingen'] },
+  { code: 'be', names: ['bern', 'berne'], towns: ['bern', 'berne', 'biel', 'bienne', 'thun', 'koniz', 'burgdorf', 'ostermundigen', 'langenthal', 'muri bei bern', 'ittigen', 'worb', 'lyss', 'spiez', 'interlaken', 'zollikofen', 'bolligen', 'munsingen'] },
+  { code: 'sz', names: ['schwyz'], towns: ['schwyz', 'freienbach', 'pfaffikon sz', 'einsiedeln', 'kussnacht', 'lachen', 'wollerau', 'altendorf', 'arth', 'goldau', 'ingenbohl', 'brunnen', 'galgenen', 'feusisberg', 'schindellegi'] },
+  { code: 'sg', names: ['st. gallen', 'st gallen', 'sankt gallen', 'saint-gall'], towns: ['st. gallen', 'st gallen', 'sankt gallen', 'rapperswil', 'rapperswil-jona', 'jona', 'wil', 'gossau', 'uzwil', 'buchs sg', 'altstatten', 'flawil', 'rorschach', 'wattwil', 'heerbrugg', 'widnau', 'sargans'] },
+  { code: 'tg', names: ['thurgau', 'thurgovie'], towns: ['frauenfeld', 'kreuzlingen', 'arbon', 'amriswil', 'weinfelden', 'romanshorn', 'aadorf', 'sirnach', 'munchwilen'] },
+  { code: 'sh', names: ['schaffhausen', 'schaffhouse'], towns: ['schaffhausen', 'neuhausen am rheinfall', 'neuhausen', 'thayngen', 'stein am rhein'] },
+  { code: 'gl', names: ['glarus', 'glaris'], towns: ['glarus', 'nafels', 'netstal'] },
+  { code: 'nw', names: ['nidwalden'], towns: ['stans', 'hergiswil', 'stansstad', 'buochs'] },
+  { code: 'ow', names: ['obwalden'], towns: ['sarnen', 'alpnach', 'kerns', 'engelberg'] },
+  { code: 'ur', names: ['uri'], towns: ['altdorf', 'erstfeld', 'andermatt'] },
+  { code: 'gr', names: ['graubunden', 'grisons', 'grigioni'], towns: ['chur', 'davos', 'landquart', 'st. moritz', 'domat/ems', 'ilanz'] },
+  { code: 'ai', names: ['appenzell innerrhoden'], towns: ['appenzell'] },
+  { code: 'ar', names: ['appenzell ausserrhoden'], towns: ['herisau', 'teufen', 'heiden'] },
+  { code: 'fr', names: ['fribourg', 'freiburg'], towns: ['fribourg', 'freiburg', 'bulle', 'murten', 'morat', 'villars-sur-glane', 'marly', 'dudingen', 'givisiez'] },
+  { code: 'vd', names: ['vaud', 'waadt'], towns: ['lausanne', 'yverdon', 'montreux', 'renens', 'nyon', 'vevey', 'morges', 'ecublens', 'gland', 'pully', 'prilly', 'rolle', 'crissier', 'epalinges', 'aigle'] },
+  { code: 'ge', names: ['geneve', 'geneva', 'genf', 'ginevra'], towns: ['geneve', 'geneva', 'genf', 'vernier', 'lancy', 'meyrin', 'carouge', 'onex', 'thonex', 'plan-les-ouates', 'satigny', 'le grand-saconnex', 'chene-bourg'] },
+  { code: 'ne', names: ['neuchatel', 'neuenburg'], towns: ['neuchatel', 'la chaux-de-fonds', 'le locle', 'marin-epagnier', 'boudry'] },
+  { code: 'ju', names: ['jura'], towns: ['delemont', 'porrentruy'] },
+  { code: 'vs', names: ['valais', 'wallis', 'vallese'], towns: ['sion', 'sitten', 'brig', 'visp', 'martigny', 'monthey', 'sierre', 'siders'] },
+  { code: 'ti', names: ['ticino', 'tessin'], towns: ['lugano', 'bellinzona', 'locarno', 'mendrisio', 'chiasso', 'manno', 'stabio'] },
+];
 var MAX_SEEN = 5000;
 
 // ---------------------------------------------------------------------------
@@ -189,7 +221,53 @@ function searchTerms(profile) {
   return roles.length ? roles : DEFAULT_TERMS;
 }
 
-/** Does a found job fit the profile? `swiss` is true for Swiss-only boards. */
+/** A place name for comparing: lower case, no accents, umlauts as plain vowels ("Zürich", "Zuerich" -> "zurich"). */
+function placeKey(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u')
+    .replace(/[àâá]/g, 'a').replace(/[éèêë]/g, 'e').replace(/[îïí]/g, 'i').replace(/[ôó]/g, 'o').replace(/[ùûú]/g, 'u').replace(/ç/g, 'c')
+    .replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Does `place` appear in `where` as a whole word or phrase? Both already placeKey'd. */
+function hasPlace(where, place) {
+  if (!place) return false;
+  var esc = place.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  return new RegExp('(^|[^a-z0-9])' + esc + '($|[^a-z0-9])').test(where);
+}
+
+/** The cantons a wanted location stands for: a canton name or code, or none. */
+function cantonsFor(wanted) {
+  return CANTONS.filter(function (c) {
+    return c.code === wanted || c.names.some(function (n) { return placeKey(n) === wanted; });
+  });
+}
+
+/** Is a job's location one of the wanted places (towns, cantons, "switzerland", "remote")? */
+function placeMatches(where, wanted) {
+  var w = placeKey(wanted);
+  if (hasPlace(where, w)) return true;
+  if (w === 'switzerland' || w === 'schweiz' || w === 'suisse') return isSwiss(where);
+  return cantonsFor(w).some(function (c) {
+    return hasPlace(where, c.code) || c.names.concat(c.towns).some(function (t) { return hasPlace(where, placeKey(t)); });
+  });
+}
+
+/** Does a location name a place in Switzerland? */
+function isSwiss(where) {
+  if (SWISS_WORDS.some(function (p) { return hasPlace(where, p); })) return true;
+  return CANTONS.some(function (c) {
+    return c.names.concat(c.towns).some(function (t) { return hasPlace(where, placeKey(t)); });
+  });
+}
+
+/**
+ * Does a found job fit the profile? `swiss` is true for Swiss-only boards,
+ * where a missing location is fine.
+ */
 function fits(job, profile, swiss) {
   var title = (job.title || '').toLowerCase();
   if (!title) return false;
@@ -197,12 +275,12 @@ function fits(job, profile, swiss) {
   if (!terms.some(function (t) { return title.indexOf(t) !== -1; })) return false;
   var avoid = splitList(profile && profile.avoid);
   if (avoid.some(function (t) { return title.indexOf(t) !== -1; })) return false;
-  if (swiss) return true;
-  var loc = ' ' + (job.location || '').toLowerCase() + ' ';
-  if (!SWISS_PLACES.some(function (p) { return loc.indexOf(p) !== -1; })) return false;
+  var where = placeKey(job.location);
+  if (!where) return Boolean(swiss);
+  if (!swiss && !isSwiss(where)) return false;
   var wanted = splitList(profile && profile.locations);
   if (!wanted.length) return true;
-  return wanted.some(function (p) { return loc.indexOf(p) !== -1; });
+  return wanted.some(function (p) { return placeMatches(where, p); });
 }
 
 function cleanUrl(url) {

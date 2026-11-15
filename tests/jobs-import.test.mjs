@@ -149,3 +149,18 @@ test('parseNovartis reads result rows with their location', () => {
   assert.ok(gs.fits(jobs[0], {}, false));
   assert.ok(!gs.fits(jobs[1], {}, false), 'a job outside Switzerland is dropped');
 });
+
+test('locations: cantons cover their towns, spellings without umlauts match', () => {
+  const at = (location, locations) => gs.fits({ title: 'Software Engineer', location }, { locations }, false);
+  assert.ok(at('Aarau, Switzerland', 'Aargau'), 'town in the canton');
+  assert.ok(at('Baden-Dättwil, AG, CH', 'Aargau'));
+  assert.ok(at('Rotkreuz', 'ZG'), 'canton code');
+  assert.ok(at('Zürich', 'Zurich') && at('Zuerich, ZH', 'Zurich') && at('Zurich', 'Zürich'), 'umlaut spellings');
+  assert.ok(!at('Basel', 'Aargau, Zurich'));
+  assert.ok(at('Basel, Switzerland', 'Switzerland'));
+  assert.ok(at('Remote', 'remote'));
+  assert.ok(!at('Badenweiler, Germany', ''), 'whole words only, and Swiss');
+  assert.ok(!at('Munich, Germany', ''));
+  assert.ok(gs.fits({ title: 'Developer', location: '' }, { locations: 'Aargau' }, true), 'Swiss board without location');
+  assert.ok(!gs.fits({ title: 'Developer', location: 'Bern' }, { locations: 'Aargau' }, true), 'Swiss board with a location outside');
+});
