@@ -153,7 +153,7 @@ def main():
             # 10. Sources: grouped by how jobs come in, or by type; opening one, adding one.
             page.get_by_role("button", name="Sources", exact=True).click()
             sheet = page.locator(".pa-sheet")
-            expect(sheet.get_by_role("heading", name="Imported automatically (8)")).to_be_visible()
+            expect(sheet.get_by_role("heading", name="Imported automatically (12)")).to_be_visible()
             expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Waiting for the first import")
             jobsch = sheet.locator(".jb-source", has=page.get_by_text("jobs.ch", exact=True))
             expect(jobsch).to_contain_text("Manual: alert or copy page")

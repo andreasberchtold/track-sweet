@@ -210,3 +210,11 @@ test('every source lands in exactly one group', () => {
   assert.deepEqual(samples.map((s) => GROUPS.filter((g) => g.test(s)).map((g) => g.id)), [['auto'], ['alert'], ['alert'], ['manual'], ['check']]);
   assert.ok(isAuto(samples[0]) && !isAuto({ ...samples[0], skip: true }));
 });
+
+import { pendingUpdates, DEFAULT_UPDATES } from '../apps/jobs/sources.js';
+
+test('pendingUpdates applies each built-in update once', () => {
+  assert.equal(pendingUpdates([]).length, DEFAULT_UPDATES.length);
+  assert.equal(pendingUpdates(DEFAULT_UPDATES.map((u) => `${u.id}@${u.v}`)).length, 0);
+  for (const u of DEFAULT_UPDATES) assert.ok(DEFAULT_SOURCES.some((s) => s.id === u.id), u.id);
+});

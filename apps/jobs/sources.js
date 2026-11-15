@@ -38,6 +38,8 @@ export function readerFor(url) {
   if (/^https:\/\/(?:job-boards|boards)(\.eu)?\.greenhouse\.io\/[A-Za-z0-9_-]+/.test(u)) return 'greenhouse';
   if (/^https:\/\/[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com\/(?:[a-z]{2}-[A-Z]{2}\/)?[A-Za-z0-9_-]+/.test(u)) return 'workday';
   if (/^https:\/\/(careers\.swissre\.com|job\.schindler\.com)/.test(u)) return 'csb';
+  if (/^https:\/\/(careers\.roche\.com|careers\.siemens-healthineers\.com)\//.test(u)) return 'phenom';
+  if (/^https:\/\/www\.novartis\.com\/careers/.test(u)) return 'novartis';
   if (/^https:\/\/(www\.)?talendo\.ch\//.test(u) || /^https:\/\/jobs\.nzz\.ch\//.test(u)) return 'links';
   return null;
 }
@@ -94,8 +96,10 @@ export const DEFAULT_SOURCES = [
   company('swissre', 'Swiss Re', 'https://careers.swissre.com/', 'Reinsurance', 'SuccessFactors', 'feed'),
   company('schindler', 'Schindler', 'https://job.schindler.com/', 'Industry, IoT', 'SuccessFactors', 'feed'),
   company('sonova', 'Sonova', 'https://www.sonova.com/en/careers', 'Medtech', 'SuccessFactors', 'feed'),
-  company('roche', 'Roche', 'https://careers.roche.com/global/en', 'Pharma, diagnostics', 'Phenom', 'check'),
-  company('novartis', 'Novartis', 'https://www.novartis.com/careers/career-search', 'Pharma', 'Custom', 'check'),
+  company('roche', 'Roche', 'https://careers.roche.com/global/en', 'Pharma, diagnostics', 'Phenom', 'feed', 'Read from the data embedded in the search page; not yet confirmed on the live site.'),
+  company('novartis', 'Novartis', 'https://www.novartis.com/careers/career-search', 'Pharma', 'Own site', 'feed', 'Search results are plain HTML with a Switzerland filter.'),
+  company('healthineers', 'Siemens Healthineers', 'https://careers.siemens-healthineers.com/global/en', 'Medtech', 'Phenom', 'feed', 'Read from the data embedded in the search page; not yet confirmed on the live site.'),
+  company('varian', 'Varian (Siemens Healthineers)', 'https://onehealthineers.wd3.myworkdayjobs.com/SHSJB', 'Medtech, radiation oncology software', 'Workday', 'feed'),
   company('ubs', 'UBS', 'https://www.ubs.com/global/en/careers/search-jobs.html', 'Bank', 'Probably Taleo', 'check'),
   company('zurich', 'Zurich Insurance', 'https://www.zurich.ch/', 'Insurance', '', 'check', 'Link goes to the main site: replace it with the careers page.'),
   company('juliusbaer', 'Julius Bär', 'https://www.juliusbaer.com/', 'Bank', '', 'check', 'Link goes to the main site: replace it with the careers page.'),
@@ -127,6 +131,21 @@ export const DEFAULT_SOURCES = [
  * The default sources not yet offered to this file. `seen` lists the ids
  * offered before, so an entry the user deleted is not added again.
  */
+/**
+ * Changes to built-in entries that may already be in the file (for example
+ * a company that became importable). Applied once per entry and version.
+ */
+export const DEFAULT_UPDATES = [
+  { id: 'seed:roche', v: 1, fields: { access: 'feed', system: 'Phenom', notes: 'Read from the data embedded in the search page; not yet confirmed on the live site.' } },
+  { id: 'seed:novartis', v: 1, fields: { access: 'feed', system: 'Own site', notes: 'Search results are plain HTML with a Switzerland filter.' } },
+];
+
+/** The updates not applied yet; `applied` lists "id@v" keys. */
+export function pendingUpdates(applied = []) {
+  const done = new Set(applied);
+  return DEFAULT_UPDATES.filter((u) => !done.has(`${u.id}@${u.v}`));
+}
+
 export function newDefaults(seen = []) {
   const known = new Set(seen);
   return DEFAULT_SOURCES.filter((s) => !known.has(s.id));

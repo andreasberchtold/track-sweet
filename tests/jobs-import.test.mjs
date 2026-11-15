@@ -114,3 +114,38 @@ test('autoSources takes followed automatic sources with a reader', () => {
   };
   assert.deepEqual([...gs.autoSources(doc).map((s) => s.name)], ['A']);
 });
+
+test('readerFor knows Phenom sites and Novartis', () => {
+  assert.equal(gs.readerFor('https://careers.roche.com/global/en').base, 'https://careers.roche.com/global/en');
+  assert.equal(gs.readerFor('https://careers.siemens-healthineers.com/global/en').type, 'phenom');
+  assert.equal(gs.readerFor('https://www.novartis.com/careers/career-search').type, 'novartis');
+  assert.equal(gs.readerFor('https://onehealthineers.wd3.myworkdayjobs.com/SHSJB').site, 'SHSJB');
+});
+
+test('parsePhenom reads the jobs embedded in the search page', () => {
+  const ddo = {
+    siteConfig: { note: 'a } inside a string' },
+    eagerLoadRefineSearch: {
+      status: 200,
+      data: { jobs: [{ title: 'Senior Software Engineer (Diagnostics)', jobSeqNo: 'ROCHGLOBAL202611001EXTERNALENGLOBAL', city: 'Rotkreuz', country: 'Switzerland' }] },
+    },
+  };
+  const html = `<html><script>var phApp = phApp || {}; phApp.ddo = ${JSON.stringify(ddo)}; phApp.other = {};</script></html>`;
+  const jobs = gs.parsePhenom(html, 'https://careers.roche.com/global/en');
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].url, 'https://careers.roche.com/global/en/job/ROCHGLOBAL202611001EXTERNALENGLOBAL/senior-software-engineer-diagnostics');
+  assert.equal(jobs[0].location, 'Rotkreuz, Switzerland');
+  assert.equal(gs.parsePhenom('<html>no data</html>', 'x').length, 0);
+});
+
+test('parseNovartis reads result rows with their location', () => {
+  const html = `<table><tbody>
+    <tr><td><a href="/careers/career-search/job/details/req-10089048-forward-deployed-engineer">Forward Deployed Engineer (FDE)</a></td><td>Switzerland</td><td>Basel (City)</td></tr>
+    <tr><td><a href="/careers/career-search/job/details/req-10090000-senior-ai-engineer">Senior AI Engineer</a></td><td>Czech Republic</td><td>Prague</td></tr>
+  </tbody></table>`;
+  const jobs = gs.parseNovartis(html, 'https://www.novartis.com');
+  assert.equal(jobs.length, 2);
+  assert.equal(jobs[0].url, 'https://www.novartis.com/careers/career-search/job/details/req-10089048-forward-deployed-engineer');
+  assert.ok(gs.fits(jobs[0], {}, false));
+  assert.ok(!gs.fits(jobs[1], {}, false), 'a job outside Switzerland is dropped');
+});
