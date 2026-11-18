@@ -236,6 +236,7 @@ export function daysBetween(a, b) {
 const JOB_LINK = [
   [/(^|\.)jobs\.ch$/, /\/vacancies\/detail\/|\/stellenangebote\/detail\/|\/offres-emplois\/detail\//],
   [/(^|\.)jobup\.ch$/, /\/detail\//],
+  [/(^|\.)jobscout24\.ch$/, /\/jobs?\/[^/?#]*\d{4,}|[?&](jobid|jobId|id)=\d+|\/jobs?\/[a-z0-9-]+-\d+/],
   [/(^|\.)linkedin\.com$/, /\/jobs\/view\//],
   [/(^|\.)indeed\.(com|ch)$/, /\/viewjob|\/rc\/clk|\/pagead\/clk|[?&]jk=/],
   [/(^|\.)jobagent\.ch$/, /\/job\/\d|\/jobs?\/[^/?]+-\d{4,}/],

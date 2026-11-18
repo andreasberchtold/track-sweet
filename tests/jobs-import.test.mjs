@@ -164,3 +164,58 @@ test('locations: cantons cover their towns, spellings without umlauts match', ()
   assert.ok(gs.fits({ title: 'Developer', location: '' }, { locations: 'Aargau' }, true), 'Swiss board without location');
   assert.ok(!gs.fits({ title: 'Developer', location: 'Bern' }, { locations: 'Aargau' }, true), 'Swiss board with a location outside');
 });
+
+// ---- e-mail alerts (AlertsImport.gs runs in the same project as JobsImport.gs)
+vm.runInContext(readFileSync(new URL('../helpers/jobs-import/AlertsImport.gs', import.meta.url), 'utf8'), gs);
+
+test('isBoardJob knows job links on the boards that send alerts', () => {
+  assert.ok(gs.isBoardJob('https://www.jobs.ch/de/stellenangebote/detail/1b2c3d4e-5f60-7a8b-9c0d-112233445566/'));
+  assert.ok(!gs.isBoardJob('https://www.jobs.ch/de/stellenangebote/?term=software'));
+  assert.ok(gs.isBoardJob('https://www.jobscout24.ch/de/job/1234567/'));
+  assert.ok(gs.isBoardJob('https://www.jobscout24.ch/de/jobs/software-engineer-zuerich-1234567/'));
+  assert.ok(!gs.isBoardJob('https://www.jobscout24.ch/de/'));
+  assert.ok(gs.isBoardJob('https://www.linkedin.com/jobs/view/4242/'));
+  assert.ok(!gs.isBoardJob('https://example.ch/job/12345'));
+});
+
+test('jobsFromAlert reads direct and tracked links, never unsubscribe links', () => {
+  const html = `
+    <a href="https://www.jobs.ch/de/stellenangebote/detail/aaa-111/?utm_source=jobmail&amp;utm_medium=email"><img src="logo.png"></a>
+    <a href="https://www.jobs.ch/de/stellenangebote/detail/aaa-111/?utm_source=jobmail">Senior Software Engineer (80-100%)</a>
+    <a href="https://track.example.net/c/xyz">Backend Developer .NET</a>
+    <a href="https://track.example.net/c/logo"><img src="x.png"></a>
+    <a href="https://track.example.net/c/unsub">Abmelden</a>
+    <a href="https://www.jobs.ch/de/einstellungen/jobmail/">Jobmail-Einstellungen</a>
+    <a href="https://www.jobs.ch/de/stellenangebote/?term=software">Alle Jobs ansehen</a>`;
+  const followed = [];
+  const resolve = (url) => {
+    followed.push(url);
+    return url === 'https://track.example.net/c/xyz' ? 'https://www.jobscout24.ch/de/job/7654321/?utm_campaign=alert' : '';
+  };
+  const jobs = gs.jobsFromAlert(html, resolve);
+  assert.deepEqual(JSON.parse(JSON.stringify(jobs)), [
+    { url: 'https://www.jobs.ch/de/stellenangebote/detail/aaa-111/', title: 'Senior Software Engineer (80-100%)', source: 'jobs.ch' },
+    { url: 'https://www.jobscout24.ch/de/job/7654321/', title: 'Backend Developer .NET', source: 'JobScout24' },
+  ]);
+  assert.deepEqual([...followed], ['https://track.example.net/c/xyz'], 'only the titled tracking link is followed');
+});
+
+test('addAlertJobs adds by board, skips words to avoid and known links', () => {
+  const doc = { collections: { jobs: [] }, settings: { profile: { avoid: 'SAP' } } };
+  let n = 0;
+  const jobs = [
+    { url: 'https://www.jobs.ch/de/stellenangebote/detail/a/', title: 'Software Engineer', source: 'jobs.ch' },
+    { url: 'https://www.jobs.ch/de/stellenangebote/detail/b/', title: 'SAP Developer', source: 'jobs.ch' },
+    { url: 'https://www.jobscout24.ch/de/job/1234567/', title: 'Data Engineer', source: 'JobScout24' },
+  ];
+  assert.equal(gs.addAlertJobs(doc, jobs, '2026-11-18T10:00:00.000Z', () => `id${++n}`), 2);
+  assert.deepEqual([...doc.collections.jobs.map((j) => j.source)], ['jobs.ch', 'JobScout24']);
+  assert.equal(doc.collections.jobs[0].status, 'found');
+  assert.equal(gs.addAlertJobs(doc, jobs, '2026-11-18T11:00:00.000Z', () => `id${++n}`), 0);
+});
+
+test('fileIdOf takes the id from a Drive link', () => {
+  assert.equal(gs.fileIdOf('https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/view?usp=sharing'), '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  assert.equal(gs.fileIdOf('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345'), '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+  assert.equal(gs.fileIdOf(''), '');
+});

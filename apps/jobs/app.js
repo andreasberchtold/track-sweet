@@ -380,6 +380,7 @@ function mountApp({ root, store, shell }) {
       const all = store.list(SOURCES);
       const today = todayISO();
       const log = store.setting('importLog', null);
+      const alerts = store.setting('alertLog', null);
       const groups =
         by === 'how'
           ? S.GROUPS.map((g) => [g.title, S.sortSources(all, g.test)])
@@ -404,6 +405,13 @@ function mountApp({ root, store, shell }) {
           log
             ? `Last automatic import: ${formatDate(log.at.slice(0, 10))}, ${log.sources.reduce((n, x) => n + (x.added || 0), 0)} new jobs.`
             : 'Automatic import is not set up yet (see "Imported automatically" below). Manual sources: copy a results page and use "Import".',
+        ),
+        h(
+          'p',
+          { class: 'pa-muted' },
+          alerts
+            ? `E-mail alerts last read ${new Date(alerts.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}: ${alerts.added} new jobs from ${alerts.mails} mails.`
+            : 'E-mail alerts are not imported yet.',
         ),
         h(
           'div',
