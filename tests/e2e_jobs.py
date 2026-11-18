@@ -184,6 +184,7 @@ def main():
             doc["settings"]["importLog"] = {"at": today.isoformat() + "T06:00:00.000Z", "version": 1, "sources": [
                 {"id": swc["id"], "name": "Swisscom", "found": 5, "added": 3, "error": ""},
                 {"id": tal["id"], "name": "talendo.ch", "found": 0, "added": 0, "error": "HTTP 403 from talendo.ch"}]}
+            doc["settings"]["alertLog"] = {"at": today.isoformat() + "T07:00:00.000Z", "mails": 2, "found": 9, "added": 4}
             doc["collections"]["sources"] = [s for s in doc["collections"]["sources"] if s["name"] != "Proton"]
             page.evaluate("d => localStorage.setItem('pa:demo:jobs', JSON.stringify({rev: '100', content: d}))", doc)
             page.reload()
@@ -192,6 +193,7 @@ def main():
             page.get_by_role("button", name="Sources", exact=True).click()
             sheet.get_by_role("button", name="By import").click()
             expect(sheet.get_by_text("Last automatic import:")).to_contain_text("3 new jobs")
+            expect(sheet.get_by_text("E-mail alerts last read")).to_contain_text("4 new jobs from 2 mails")
             expect(sheet.locator(".jb-source", has_text="Swisscom")).to_contain_text("Last import: 3 new")
             expect(sheet.locator(".jb-source", has_text="talendo.ch")).to_contain_text("Import failed: HTTP 403")
             page.keyboard.press("Escape")
