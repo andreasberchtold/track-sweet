@@ -381,6 +381,24 @@ def main():
             expect(page.locator(".mv-item").filter(has_text="Saltburn").locator(".mv-tag")).to_have_text(["Alone"])
             page.get_by_role("button", name="Watched", exact=True).click()
 
+            # 7f. The search button finds titles in your lists first, then new ones on TMDB.
+            expect(page.locator(".mv-add")).to_have_text("Search")
+            page.locator(".mv-add").click()
+            expect(page.get_by_role("heading", name="Search")).to_be_visible()
+            page.get_by_role("searchbox").fill("stal")
+            mine = page.locator(".mv-results__mine")
+            expect(mine.get_by_role("heading", name="In your lists")).to_be_visible()
+            expect(mine.locator(".mv-row").filter(has_text="Stalker").locator(".mv-tag")).to_have_text("Watched")
+            expect(page.get_by_role("heading", name="Add a new title")).to_be_visible()
+            shot(page, "11-search")
+            mine.get_by_role("button", name="Stalker").click()
+            expect(page.get_by_role("heading", name="Edit title")).to_be_visible()
+            page.get_by_label("Close").click()
+            page.locator(".mv-add").click()
+            page.get_by_role("searchbox").fill("zzzz")
+            expect(page.get_by_text("Not in your lists yet.")).to_be_visible()
+            page.get_by_label("Close").click()
+
             # 8. Dark theme and a wide screen, for the record.
             dark = browser.new_context(
                 viewport={"width": 412, "height": 880}, device_scale_factor=2, color_scheme="dark",

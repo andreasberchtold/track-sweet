@@ -133,8 +133,8 @@ function mountApp({ root, store, shell }) {
   const addBtn = h(
     'button',
     { class: 'pa-btn pa-btn--primary mv-add', type: 'button', onclick: () => openAdd() },
-    icon(ICONS.plus),
-    'Add title',
+    icon(ICONS.search),
+    'Search',
   );
 
   mount(
@@ -288,12 +288,17 @@ function mountApp({ root, store, shell }) {
 
   // ---- adding --------------------------------------------------------------
 
+  /**
+   * One search for both: titles already in your lists (shown at once, from
+   * the data on the device) and, below, new titles from TMDB to add.
+   */
   function openAdd() {
+    const mineBox = h('div', { class: 'mv-results__mine' });
     const results = h('div', { class: 'mv-results' });
     const input = h('input', {
       class: 'pa-input',
       type: 'search',
-      placeholder: tmdb.hasKey() ? 'Search movies and series' : 'Title',
+      placeholder: 'Search your lists and new titles',
       'aria-label': 'Title',
       autocomplete: 'off',
       enterkeyhint: 'search',
@@ -301,10 +306,69 @@ function mountApp({ root, store, shell }) {
     let controller = null;
 
     const panel = shell.sheet({
-      title: 'Add title',
-      body: h('div', { class: 'pa-form' }, input, results),
+      title: 'Search',
+      body: h('div', { class: 'pa-form' }, input, mineBox, results),
       onClose: () => controller?.abort(),
     });
+
+    const fold = (s) =>
+      String(s ?? '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    function showMine() {
+      const text = fold(input.value.trim());
+      if (!text) {
+        mineBox.replaceChildren();
+        return;
+      }
+      const scored = [];
+      for (const t of store.list(TITLES)) {
+        const names = [t.title, t.originalTitle].map(fold);
+        const at = Math.min(...names.map((n) => (n.includes(text) ? n.indexOf(text) : Infinity)));
+        if (at !== Infinity) scored.push([at === 0 ? 0 : 1, t]);
+      }
+      scored.sort((a, b) => a[0] - b[0] || a[1].title.localeCompare(b[1].title));
+      const mine = scored.slice(0, 8).map(([, t]) => t);
+      mount(
+        mineBox,
+        mine.length
+          ? [
+              h('h3', { class: 'mv-results__heading' }, scored.length > 8 ? `In your lists (8 of ${scored.length})` : 'In your lists'),
+              h(
+                'ul',
+                { class: 'mv-rows' },
+                mine.map((t) =>
+                  h(
+                    'li',
+                    null,
+                    h(
+                      'button',
+                      {
+                        class: 'mv-row',
+                        type: 'button',
+                        onclick: () => {
+                          panel.close();
+                          openEditor(t);
+                        },
+                      },
+                      poster(t),
+                      h(
+                        'span',
+                        { class: 'mv-row__text' },
+                        h('span', { class: 'mv-row__title' }, t.title),
+                        h('span', { class: 'mv-row__meta' }, [TYPE_LABEL[t.mediaType], t.year].filter(Boolean).join(', ')),
+                      ),
+                      h('span', { class: 'mv-tag' }, STATUS_LABEL[t.status] ?? t.status),
+                    ),
+                  ),
+                ),
+              ),
+            ]
+          : h('p', { class: 'pa-muted' }, 'Not in your lists yet.'),
+      );
+    }
 
     const manualRow = (text) =>
       h(
@@ -356,12 +420,13 @@ function mountApp({ root, store, shell }) {
         return;
       }
       controller = new AbortController();
-      mount(results, h('p', { class: 'pa-muted' }, 'Searching'));
+      mount(results, h('p', { class: 'pa-muted' }, 'Searching TMDB'));
       try {
         const found = await tmdb.search(text, controller.signal);
         const mine = store.list(TITLES);
         mount(
           results,
+          h('h3', { class: 'mv-results__heading' }, 'Add a new title'),
           found.length
             ? h(
                 'ul',
@@ -407,6 +472,7 @@ function mountApp({ root, store, shell }) {
       mount(results, tmdb.hasKey() ? null : keyHint());
     }
 
+    input.addEventListener('input', showMine);
     input.addEventListener('input', debounce(search, 300));
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {

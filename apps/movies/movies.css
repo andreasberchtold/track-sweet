@@ -450,6 +450,21 @@
   align-content: start;
 }
 
+.mv-results__heading {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.mv-results__mine {
+  display: grid;
+  gap: 8px;
+}
+
+.mv-results__mine:empty {
+  display: none;
+}
+
 .mv-manual {
   justify-self: start;
   max-width: 100%;
