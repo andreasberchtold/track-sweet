@@ -290,3 +290,32 @@
 .jb-pick input {
   margin-top: 4px;
 }
+
+.jb-run {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  border-left: 4px solid var(--st-saved);
+  background: var(--surface);
+}
+
+.jb-run--failed {
+  border-left-color: var(--danger);
+}
+
+.jb-runlines,
+.jb-runjobs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+
+.jb-err {
+  color: var(--danger);
+}
+
+.jb-run > .pa-btn {
+  justify-self: start;
+}

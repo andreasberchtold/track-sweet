@@ -9,8 +9,10 @@ import {
   findUrl,
   findWorkload,
   fromShared,
+  importRuns,
   moveTo,
   reasonCounts,
+  runLines,
   sortForView,
   sourceOf,
   viewOf,
@@ -217,4 +219,26 @@ test('pendingUpdates applies each built-in update once', () => {
   assert.equal(pendingUpdates([]).length, DEFAULT_UPDATES.length);
   assert.equal(pendingUpdates(DEFAULT_UPDATES.map((u) => `${u.id}@${u.v}`)).length, 0);
   for (const u of DEFAULT_UPDATES) assert.ok(DEFAULT_SOURCES.some((s) => s.id === u.id), u.id);
+});
+
+test('importRuns lists helper and paste runs newest first', () => {
+  const runs = importRuns({
+    importHistory: [
+      { at: '2026-11-20T06:00:00.000Z', kind: 'sources', added: 3 },
+      { at: '2026-11-19T12:00:00.000Z', kind: 'alerts', added: 1, mails: 2 },
+    ],
+    pasteHistory: [{ at: '2026-11-19T18:00:00.000Z', kind: 'paste', added: 4 }],
+    importLog: { at: '2026-11-20T06:00:00.000Z', sources: [] },
+  });
+  assert.deepEqual(runs.map((r) => r.kind), ['sources', 'paste', 'alerts']);
+});
+
+test('importRuns falls back to the last run from before the history existed', () => {
+  const runs = importRuns({
+    importLog: { at: '2026-11-18T06:00:00.000Z', sources: [{ name: 'Roche', found: 4, added: 2 }, { name: 'UBS', found: 0, added: 0, error: 'HTTP 403' }] },
+    alertLog: { at: '2026-11-18T17:00:00.000Z', mails: 0, found: 0, added: 0 },
+  });
+  assert.equal(runs.length, 1, 'an alert check without mails is not a run');
+  assert.equal(runs[0].added, 2);
+  assert.deepEqual(runLines(runs[0]), ['Roche: 2 new of 4', 'UBS: failed (HTTP 403)']);
 });

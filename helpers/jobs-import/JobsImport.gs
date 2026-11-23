@@ -55,6 +55,7 @@ var CANTONS = [
   { code: 'ti', names: ['ticino', 'tessin'], towns: ['lugano', 'bellinzona', 'locarno', 'mendrisio', 'chiasso', 'manno', 'stabio'] },
 ];
 var MAX_SEEN = 5000;
+var MAX_HISTORY = 200;
 
 // ---------------------------------------------------------------------------
 // Which reader fits a source's link. Must agree with readerFor in
@@ -296,9 +297,9 @@ function cleanUrl(url) {
 /**
  * Add new jobs to the document. A job counts as known when its link is in
  * the list or was imported before (so a job I deleted does not come back).
- * Returns the number added.
+ * Returns the number added; the new jobs' ids are pushed to `ids` if given.
  */
-function addJobs(doc, source, jobs, now, newId) {
+function addJobs(doc, source, jobs, now, newId, ids) {
   doc.collections = doc.collections || {};
   var list = (doc.collections.jobs = doc.collections.jobs || []);
   doc.settings = doc.settings || {};
@@ -313,8 +314,10 @@ function addJobs(doc, source, jobs, now, newId) {
     if (!url || known[url]) return;
     known[url] = true;
     seenList.push(url);
+    var id = newId();
+    if (ids) ids.push(id);
     list.push({
-      id: newId(),
+      id: id,
       title: job.title,
       company: source.kind === 'company' ? source.name : job.company || '',
       location: job.location || '',
@@ -331,6 +334,17 @@ function addJobs(doc, source, jobs, now, newId) {
   });
   doc.settings.importSeen = seenList.slice(-MAX_SEEN);
   return added;
+}
+
+/**
+ * Keep a record of a run in settings.importHistory, newest first, at most
+ * MAX_HISTORY entries. The app shows it as the import log.
+ */
+function addHistory(doc, entry) {
+  doc.settings = doc.settings || {};
+  var list = doc.settings.importHistory || [];
+  list.unshift(entry);
+  doc.settings.importHistory = list.slice(0, MAX_HISTORY);
 }
 
 /** The sources to read: marked automatic, followed, with a reader. */
@@ -407,12 +421,20 @@ function runImport() {
   // during the run are kept.
   var fresh = JSON.parse(file.getBlob().getDataAsString());
   var now = new Date().toISOString();
+  var ids = [];
   autoSources(fresh).forEach(function (source) {
     var r = results.filter(function (x) { return x.id === source.id; })[0];
-    if (r && found[source.id]) r.added = addJobs(fresh, source, found[source.id], now, Utilities.getUuid);
+    if (r && found[source.id]) r.added = addJobs(fresh, source, found[source.id], now, Utilities.getUuid, ids);
   });
   fresh.settings = fresh.settings || {};
   fresh.settings.importLog = { at: now, version: IMPORT_VERSION, sources: results };
+  addHistory(fresh, {
+    at: now,
+    kind: 'sources',
+    added: ids.length,
+    jobIds: ids,
+    sources: results.map(function (r) { return { name: r.name, found: r.found, added: r.added, error: r.error }; }),
+  });
   fresh.savedAt = now;
   file.setContent(JSON.stringify(fresh, null, 2));
   Logger.log(results.map(function (r) { return r.name + ': ' + (r.error ? 'error ' + r.error : r.added + ' new of ' + r.found); }).join('\n'));

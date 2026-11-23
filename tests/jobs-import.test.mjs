@@ -214,6 +214,31 @@ test('addAlertJobs adds by board, skips words to avoid and known links', () => {
   assert.equal(gs.addAlertJobs(doc, jobs, '2026-11-18T11:00:00.000Z', () => `id${++n}`), 0);
 });
 
+test('addAlertJobs reports the new job ids and the result per board', () => {
+  const doc = { collections: { jobs: [] }, settings: { profile: { avoid: 'SAP' } } };
+  let n = 0;
+  const jobs = [
+    { url: 'https://www.jobs.ch/de/stellenangebote/detail/a/', title: 'Software Engineer', source: 'jobs.ch' },
+    { url: 'https://www.jobs.ch/de/stellenangebote/detail/b/', title: 'SAP Developer', source: 'jobs.ch' },
+    { url: 'https://www.jobscout24.ch/de/job/1234567/', title: 'Data Engineer', source: 'JobScout24' },
+  ];
+  const report = {};
+  gs.addAlertJobs(doc, jobs, '2026-11-18T10:00:00.000Z', () => `id${++n}`, report);
+  assert.deepEqual([...report.ids], ['id1', 'id2']);
+  assert.deepEqual(JSON.parse(JSON.stringify(report.sources)), [
+    { name: 'jobs.ch', found: 2, added: 1, error: '' },
+    { name: 'JobScout24', found: 1, added: 1, error: '' },
+  ]);
+});
+
+test('addHistory keeps the newest runs first and at most 200', () => {
+  const doc = { settings: {} };
+  for (let i = 0; i < 205; i++) gs.addHistory(doc, { at: `run${i}`, kind: 'sources', added: 0 });
+  assert.equal(doc.settings.importHistory.length, 200);
+  assert.equal(doc.settings.importHistory[0].at, 'run204');
+  assert.equal(doc.settings.importHistory[199].at, 'run5');
+});
+
 test('fileIdOf takes the id from a Drive link', () => {
   assert.equal(gs.fileIdOf('https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/view?usp=sharing'), '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
   assert.equal(gs.fileIdOf('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345'), '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');

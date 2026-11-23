@@ -5,6 +5,7 @@ Usage:  python3 tests/e2e_jobs.py [folder-for-screenshots]
 Needs:  Node.js, Python with Playwright, and Chrome (or set CHROME_PATH).
 """
 import json
+import re
 import os
 import subprocess
 import sys
@@ -186,6 +187,14 @@ def main():
                 {"id": tal["id"], "name": "talendo.ch", "found": 0, "added": 0, "error": "HTTP 403 from talendo.ch"}]}
             doc["settings"]["alertLog"] = {"at": today.isoformat() + "T07:00:00.000Z", "mails": 2, "found": 9, "added": 4}
             doc["collections"]["sources"] = [s for s in doc["collections"]["sources"] if s["name"] != "Proton"]
+            some_job = doc["collections"]["jobs"][0]
+            doc["settings"]["importHistory"] = [
+                {"at": today.isoformat() + "T07:00:00.000Z", "kind": "alerts", "mails": 2, "found": 9, "added": 4,
+                 "jobIds": [some_job["id"], "gone"], "sources": [{"name": "jobs.ch", "found": 9, "added": 4, "error": ""}]},
+                {"at": today.isoformat() + "T06:00:00.000Z", "kind": "sources", "added": 3, "jobIds": [],
+                 "sources": [{"name": "Swisscom", "found": 5, "added": 3, "error": ""},
+                             {"name": "talendo.ch", "found": 0, "added": 0, "error": "HTTP 403 from talendo.ch"}]},
+            ]
             page.evaluate("d => localStorage.setItem('pa:demo:jobs', JSON.stringify({rev: '100', content: d}))", doc)
             page.reload()
             expect(page.locator(".jb-card").first).to_be_visible()
@@ -221,6 +230,27 @@ def main():
             expect(page.locator(".jb-card")).to_have_count(2)
             expect(page.locator(".jb-card", has_text="Data Engineer 80-100%")).to_contain_text("Example Bank · 80–100%")
             expect(status).to_have_text("Saved")
+
+            # 12b. The import log lists every run, newest first, with the jobs it added.
+            page.get_by_role("button", name="Sources", exact=True).click()
+            page.get_by_role("button", name="Import log").click()
+            log = page.locator("dialog[aria-label='Import log']")
+            runs = log.locator(".jb-run")
+            expect(runs).to_have_count(3)
+            expect(runs.nth(0)).to_contain_text("2 new · Import from page")
+            expect(runs.nth(1)).to_contain_text("4 new · E-mail alerts")
+            expect(runs.nth(1)).to_contain_text("2 mails, 9 job links")
+            expect(runs.nth(2)).to_contain_text("talendo.ch: failed (HTTP 403 from talendo.ch)")
+            expect(runs.nth(2)).to_have_class(re.compile("jb-run--failed"))
+            runs.nth(1).get_by_role("button", name="Show the 2 jobs").click()
+            expect(runs.nth(1).locator(".jb-runjobs")).to_contain_text("Deleted job")
+            shot(page, "8-import-log")
+            runs.nth(0).get_by_role("button", name="Show the 2 jobs").click()
+            runs.nth(0).get_by_role("button", name="Platform Engineer").click()
+            expect(page.locator("dialog.pa-sheet").last).to_contain_text("Platform Engineer")
+            assert saved(page)["settings"]["pasteHistory"][0]["added"] == 2
+            page.keyboard.press("Escape")
+            page.keyboard.press("Escape")
 
             # 13. Dark theme, for the record.
             dark = browser.new_context(viewport={"width": 412, "height": 915}, device_scale_factor=2,

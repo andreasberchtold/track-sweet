@@ -119,8 +119,12 @@ function jobsFromAlert(html, resolve) {
   return order.map(function (u) { return byUrl[u]; });
 }
 
-/** Add alert jobs, grouped by board, skipping titles with a word to avoid. Returns the number added. */
-function addAlertJobs(doc, jobs, now, newId) {
+/**
+ * Add alert jobs, grouped by board, skipping titles with a word to avoid.
+ * Returns the number added. With `report`, fills report.ids (new job ids)
+ * and report.sources ({ name, found, added } per board).
+ */
+function addAlertJobs(doc, jobs, now, newId, report) {
   var avoid = splitList(doc.settings && doc.settings.profile && doc.settings.profile.avoid);
   var keep = jobs.filter(function (j) {
     var t = (j.title || '').toLowerCase();
@@ -129,8 +133,14 @@ function addAlertJobs(doc, jobs, now, newId) {
   var bySource = {};
   keep.forEach(function (j) { (bySource[j.source] = bySource[j.source] || []).push(j); });
   var added = 0;
-  Object.keys(bySource).forEach(function (name) {
-    added += addJobs(doc, { name: name, kind: 'board' }, bySource[name], now, newId);
+  var ids = report ? (report.ids = report.ids || []) : null;
+  var foundBy = {};
+  jobs.forEach(function (j) { foundBy[j.source] = (foundBy[j.source] || 0) + 1; });
+  if (report) report.sources = [];
+  Object.keys(foundBy).forEach(function (name) {
+    var n = bySource[name] ? addJobs(doc, { name: name, kind: 'board' }, bySource[name], now, newId, ids) : 0;
+    added += n;
+    if (report) report.sources.push({ name: name, found: foundBy[name], added: n, error: '' });
   });
   return added;
 }
@@ -183,10 +193,13 @@ function runAlerts() {
 
   var doc = JSON.parse(file.getBlob().getDataAsString());
   var now = new Date().toISOString();
-  var added = jobs.length ? addAlertJobs(doc, jobs, now, Utilities.getUuid) : 0;
+  var report = { ids: [], sources: [] };
+  var added = jobs.length ? addAlertJobs(doc, jobs, now, Utilities.getUuid, report) : 0;
   doc.settings = doc.settings || {};
   doc.settings.alertLog = { at: now, mails: mails, found: jobs.length, added: added };
   if (mails) {
+    // Runs without new mails (most hours) are not worth a log entry.
+    addHistory(doc, { at: now, kind: 'alerts', mails: mails, found: jobs.length, added: added, jobIds: report.ids, sources: report.sources });
     doc.savedAt = now;
     file.setContent(JSON.stringify(doc, null, 2));
   }
