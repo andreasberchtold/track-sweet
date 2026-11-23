@@ -417,7 +417,12 @@ function mountApp({ root, store, shell }) {
           'div',
           { class: 'pa-row pa-row--between' },
           seg.el,
-          h('button', { class: 'pa-btn', type: 'button', onclick: () => editSource(null, draw) }, 'Add source'),
+          h(
+            'div',
+            { class: 'pa-row' },
+            h('button', { class: 'pa-btn', type: 'button', onclick: () => openImportLog() }, 'Import log'),
+            h('button', { class: 'pa-btn', type: 'button', onclick: () => editSource(null, draw) }, 'Add source'),
+          ),
         ),
         groups.map(([title, items]) =>
           h(
@@ -632,9 +637,10 @@ function mountApp({ root, store, shell }) {
     function save() {
       const today = todayISO();
       let n = 0;
+      const saved = [];
       for (const i of chosen) {
         const j = found[i];
-        store.put(JOBS, {
+        const rec = store.put(JOBS, {
           title: j.title,
           company: j.company || '',
           url: j.url,
@@ -646,8 +652,26 @@ function mountApp({ root, store, shell }) {
           importedBy: 'paste',
           history: [{ status: 'found', date: today }],
         });
+        saved.push(rec);
         n += 1;
       }
+      const history = store.setting('pasteHistory', []);
+      const sources = {};
+      for (const j of saved) sources[j.source || 'Other'] = (sources[j.source || 'Other'] ?? 0) + 1;
+      store.setSetting(
+        'pasteHistory',
+        [
+          {
+            at: new Date().toISOString(),
+            kind: 'paste',
+            found: found.length,
+            added: saved.length,
+            jobIds: saved.map((j) => j.id),
+            sources: Object.entries(sources).map(([name, added]) => ({ name, found: added, added, error: '' })),
+          },
+          ...history,
+        ].slice(0, 100),
+      );
       panel.close();
       setView('judge');
       shell.toast(n === 1 ? '1 job added to "To judge"' : `${n} jobs added to "To judge"`);
@@ -669,6 +693,80 @@ function mountApp({ root, store, shell }) {
       ),
     });
     area.focus();
+  }
+
+  // ---- import log -----------------------------------------------------------------
+
+  function openImportLog() {
+    const runs = L.importRuns({
+      importHistory: store.setting('importHistory', []),
+      pasteHistory: store.setting('pasteHistory', []),
+      importLog: store.setting('importLog', null),
+      alertLog: store.setting('alertLog', null),
+    });
+    const when = (iso) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const panel = shell.sheet({
+      title: 'Import log',
+      body: h(
+        'div',
+        { class: 'pa-form' },
+        h('p', { class: 'pa-muted' }, 'Every import run, newest first. Hourly e-mail checks without new mails are not listed.'),
+        runs.length
+          ? h(
+              'ul',
+              { class: 'jb-slist' },
+              runs.map((run) => {
+                const lines = L.runLines(run);
+                const jobs = (run.jobIds ?? []).map((id) => [id, store.get(JOBS, id)]);
+                const list = h('ul', { class: 'jb-runjobs', hidden: true });
+                const failed = (run.sources ?? []).some((x) => x.error);
+                return h(
+                  'li',
+                  { class: `jb-run${failed ? ' jb-run--failed' : ''}` },
+                  h(
+                    'div',
+                    { class: 'jb-run__head' },
+                    h('strong', null, `${run.added ?? 0} new`),
+                    h('span', null, ` · ${L.RUN_KINDS[run.kind] ?? run.kind}`),
+                    h('span', { class: 'pa-muted' }, ` · ${when(run.at)}`),
+                  ),
+                  run.kind === 'alerts' && h('p', { class: 'pa-muted' }, `${run.mails ?? 0} mails, ${run.found ?? 0} job links`),
+                  lines.length ? h('ul', { class: 'jb-runlines' }, lines.map((l) => h('li', { class: /: failed/.test(l) ? 'jb-err' : '' }, l))) : null,
+                  jobs.length
+                    ? h(
+                        'button',
+                        {
+                          class: 'pa-btn pa-btn--small',
+                          type: 'button',
+                          onclick: (e) => {
+                            list.hidden = !list.hidden;
+                            e.currentTarget.textContent = list.hidden ? `Show the ${jobs.length} jobs` : 'Hide jobs';
+                          },
+                        },
+                        `Show the ${jobs.length} jobs`,
+                      )
+                    : null,
+                  jobs.length
+                    ? mount(
+                        list,
+                        jobs.map(([id, job]) =>
+                          h(
+                            'li',
+                            null,
+                            job
+                              ? h('button', { class: 'jb-link', type: 'button', onclick: () => { panel.close(); openJob(id); } }, jobName(job))
+                              : h('span', { class: 'pa-muted' }, 'Deleted job'),
+                            job ? h('span', { class: 'pa-muted' }, ` · ${L.statusLabel(job.status, true)}`) : null,
+                          ),
+                        ),
+                      )
+                    : null,
+                );
+              }),
+            )
+          : h('p', { class: 'pa-muted' }, 'No imports yet.'),
+      ),
+    });
   }
 
   // ---- details ----------------------------------------------------------------

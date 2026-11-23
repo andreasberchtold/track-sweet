@@ -256,6 +256,11 @@ The data is `jobs.json` in the same Drive folder.
   edited, starred, set to "not following", deleted or added. The starting
   list is in `apps/jobs/sources.js`; new entries added there reach the
   app, deleted ones stay deleted.
+- **Import log.** "Sources", "Import log" lists every import run, newest
+  first: the morning import, e-mail alerts and "Import from page", with
+  the result per source, errors, and the jobs each run added. The scripts
+  keep their last 200 runs in `settings.importHistory`, the app its own
+  runs in `settings.pasteHistory`.
 - **Automatic import.** A Google Apps Script in my account
   (`helpers/jobs-import/`, setup in its README) reads the automatic
   sources every morning and adds matching jobs as "To judge".

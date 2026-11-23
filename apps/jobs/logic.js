@@ -321,3 +321,35 @@ function splitTitle(title) {
   const parsed = fromShared({ title });
   return { title: parsed.title || title, company: parsed.company };
 }
+
+// ---- import log -------------------------------------------------------------------
+
+export const RUN_KINDS = {
+  sources: 'Company sites and boards',
+  alerts: 'E-mail alerts',
+  paste: 'Import from page',
+};
+
+/**
+ * All recorded import runs, newest first: the helpers' history, the app's
+ * own "Import from page" runs, and (from before the history existed) the
+ * last run of each helper.
+ */
+export function importRuns(settings = {}) {
+  const runs = [...(settings.importHistory ?? []), ...(settings.pasteHistory ?? [])];
+  if (!runs.some((r) => r.kind === 'sources') && settings.importLog?.at) {
+    const s = settings.importLog.sources ?? [];
+    runs.push({ at: settings.importLog.at, kind: 'sources', added: s.reduce((n, x) => n + (x.added || 0), 0), sources: s });
+  }
+  if (!runs.some((r) => r.kind === 'alerts') && settings.alertLog?.at && settings.alertLog.mails) {
+    runs.push({ kind: 'alerts', ...settings.alertLog });
+  }
+  return runs.filter((r) => r && r.at).sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** One line per source of a run: "Swisscom: 3 new of 5" or "Roche: failed (HTTP 403)". */
+export function runLines(run) {
+  return (run.sources ?? []).map((s) =>
+    s.error ? `${s.name}: failed (${s.error})` : `${s.name}: ${s.added ?? 0} new of ${s.found ?? 0}`,
+  );
+}

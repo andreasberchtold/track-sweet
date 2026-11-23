@@ -46,7 +46,8 @@ umlauts, so "Zurich" matches "Zürich" and "Zuerich".
    import".
 5. `setup` runs the first import straight away and schedules one every
    morning between 6 and 7. The log (View, Executions) lists what each
-   source returned; the app's source list shows it too.
+   source returned; the app's source list shows it too, and "Sources",
+   "Import log" keeps the last 200 runs of both scripts.
 
 To update the script later, paste the new `JobsImport.gs` over the old one.
 To stop it: Triggers (clock icon), delete the trigger.
