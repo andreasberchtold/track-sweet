@@ -57,6 +57,9 @@ export const KINDS = [
 const board = (id, name, url, field, access, notes = '') => ({ id: `seed:${id}`, kind: 'board', name, url, field, system: '', access, notes });
 const company = (id, name, url, field, system, access, notes = '') => ({ id: `seed:${id}`, kind: 'company', name, url, field, system, access, notes });
 
+const ROCHE_NOTE =
+  'Read from Roche\'s Workday site (the jobs behind careers.roche.com), filtered to Switzerland. The careers.roche.com search page loads its jobs in the browser, so it cannot be read.';
+
 export const DEFAULT_SOURCES = [
   // ---- job boards ----
   board('jobs-ch', 'jobs.ch', 'https://www.jobs.ch/en/vacancies/?term=software%20engineer&location=Z%C3%BCrich', 'Biggest Swiss board', 'alert', 'Terms ban crawlers, scrapers and bots.'),
@@ -96,7 +99,7 @@ export const DEFAULT_SOURCES = [
   company('swissre', 'Swiss Re', 'https://careers.swissre.com/', 'Reinsurance', 'SuccessFactors', 'feed'),
   company('schindler', 'Schindler', 'https://job.schindler.com/', 'Industry, IoT', 'SuccessFactors', 'feed'),
   company('sonova', 'Sonova', 'https://www.sonova.com/en/careers', 'Medtech', 'SuccessFactors', 'feed'),
-  company('roche', 'Roche', 'https://careers.roche.com/global/en', 'Pharma, diagnostics', 'Phenom', 'feed', 'Read from the data embedded in the search page; not yet confirmed on the live site.'),
+  company('roche', 'Roche', 'https://roche.wd3.myworkdayjobs.com/roche-ext', 'Pharma, diagnostics', 'Workday', 'feed', ROCHE_NOTE),
   company('novartis', 'Novartis', 'https://www.novartis.com/careers/career-search', 'Pharma', 'Own site', 'feed', 'Search results are plain HTML with a Switzerland filter.'),
   company('healthineers', 'Siemens Healthineers', 'https://careers.siemens-healthineers.com/global/en', 'Medtech', 'Phenom', 'feed', 'Read from the data embedded in the search page; not yet confirmed on the live site.'),
   company('varian', 'Varian (Siemens Healthineers)', 'https://onehealthineers.wd3.myworkdayjobs.com/SHSJB', 'Medtech, radiation oncology software', 'Workday', 'feed'),
@@ -137,6 +140,7 @@ export const DEFAULT_SOURCES = [
  */
 export const DEFAULT_UPDATES = [
   { id: 'seed:roche', v: 1, fields: { access: 'feed', system: 'Phenom', notes: 'Read from the data embedded in the search page; not yet confirmed on the live site.' } },
+  { id: 'seed:roche', v: 2, fields: { url: 'https://roche.wd3.myworkdayjobs.com/roche-ext', system: 'Workday', notes: ROCHE_NOTE } },
   { id: 'seed:novartis', v: 1, fields: { access: 'feed', system: 'Own site', notes: 'Search results are plain HTML with a Switzerland filter.' } },
 ];
 

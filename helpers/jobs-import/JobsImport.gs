@@ -90,17 +90,49 @@ function parseGreenhouse(data) {
   });
 }
 
-function workdayBody(term, offset) {
-  return { appliedFacets: {}, limit: 20, offset: offset || 0, searchText: term };
+var WORKDAY_PAGES = 5;
+
+function workdayBody(term, offset, facets) {
+  return { appliedFacets: facets || {}, limit: 20, offset: offset || 0, searchText: term };
 }
 
-function parseWorkday(data, reader) {
+/**
+ * The Workday filter for jobs in Switzerland, from the facets a search
+ * returns ({ locationCountry: [id] }), or null if the site has none.
+ * Big companies list thousands of jobs worldwide; without this filter the
+ * Swiss ones are rarely among the first results.
+ */
+function workdaySwissFacet(data) {
+  var found = null;
+  (function walk(list) {
+    (list || []).forEach(function (f) {
+      if (found || !f) return;
+      var swiss = (f.values || []).filter(function (v) {
+        return v && v.id && /^(switzerland|schweiz|suisse|svizzera)$/i.test(String(v.descriptor || '').trim());
+      })[0];
+      if (swiss && f.facetParameter) {
+        found = {};
+        found[f.facetParameter] = [swiss.id];
+        return;
+      }
+      walk(f.values);
+    });
+  })(data && data.facets);
+  return found;
+}
+
+/** Workday results. With `swiss`, "2 Locations" counts as an unknown place in Switzerland. */
+function parseWorkday(data, reader, swiss) {
   return ((data && data.jobPostings) || []).map(function (p) {
-    return {
+    var where = p.locationsText || '';
+    if (swiss && /^\d+\s+(locations|standorte|sites|sedi)$/i.test(where)) where = '';
+    var job = {
       title: p.title || '',
       url: 'https://' + reader.host + '/en-US/' + reader.site + (p.externalPath || ''),
-      location: p.locationsText || '',
+      location: where,
     };
+    if (swiss) job.swiss = true;
+    return job;
   });
 }
 
@@ -277,6 +309,7 @@ function fits(job, profile, swiss) {
   var avoid = splitList(profile && profile.avoid);
   if (avoid.some(function (t) { return title.indexOf(t) !== -1; })) return false;
   var where = placeKey(job.location);
+  swiss = swiss || job.swiss;
   if (!where) return Boolean(swiss);
   if (!swiss && !isSwiss(where)) return false;
   var wanted = splitList(profile && profile.locations);
@@ -448,8 +481,19 @@ function fetchSource_(source, profile) {
     jobs = parseGreenhouse(getJson_(reader.api));
   } else if (reader.type === 'workday') {
     var api = 'https://' + reader.host + '/wday/cxs/' + reader.tenant + '/' + reader.site + '/jobs';
+    var facets = null;
     terms.forEach(function (term) {
-      jobs = jobs.concat(parseWorkday(postJson_(api, workdayBody(term, 0)), reader));
+      var first = postJson_(api, workdayBody(term, 0, facets));
+      if (!facets) {
+        // The first answer names the site's filters; look for Switzerland and search again with it.
+        facets = workdaySwissFacet(first);
+        if (facets) first = postJson_(api, workdayBody(term, 0, facets));
+      }
+      jobs = jobs.concat(parseWorkday(first, reader, Boolean(facets)));
+      for (var page = 1; facets && page < WORKDAY_PAGES && page * 20 < (first.total || 0); page++) {
+        Utilities.sleep(1000);
+        jobs = jobs.concat(parseWorkday(postJson_(api, workdayBody(term, page * 20, facets)), reader, true));
+      }
       Utilities.sleep(1500);
     });
   } else if (reader.type === 'csb') {

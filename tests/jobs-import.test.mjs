@@ -244,3 +244,38 @@ test('fileIdOf takes the id from a Drive link', () => {
   assert.equal(gs.fileIdOf('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345'), '1AbCdEfGhIjKlMnOpQrStUvWxYz012345');
   assert.equal(gs.fileIdOf(''), '');
 });
+
+test('Roche is read from its Workday site', () => {
+  const r = gs.readerFor('https://roche.wd3.myworkdayjobs.com/roche-ext');
+  assert.deepEqual({ ...r }, { type: 'workday', host: 'roche.wd3.myworkdayjobs.com', tenant: 'roche', site: 'roche-ext' });
+});
+
+test('workdaySwissFacet finds the Switzerland filter, also inside location groups', () => {
+  const flat = { facets: [{ facetParameter: 'locationCountry', values: [{ descriptor: 'Germany', id: 'de1' }, { descriptor: 'Switzerland', id: 'ch1' }] }] };
+  assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(flat))), { locationCountry: ['ch1'] });
+  const grouped = {
+    facets: [
+      { facetParameter: 'jobFamilyGroup', values: [{ descriptor: 'IT', id: 'it' }] },
+      { facetParameter: 'locationMainGroup', values: [{ facetParameter: 'Location_Country', descriptor: 'Country', values: [{ descriptor: 'Switzerland', id: 'ch2' }] }] },
+    ],
+  };
+  assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(grouped))), { Location_Country: ['ch2'] });
+  assert.equal(gs.workdaySwissFacet({ facets: [] }), null);
+  assert.equal(gs.workdaySwissFacet(null), null);
+});
+
+test('Workday jobs filtered to Switzerland fit, also with several locations', () => {
+  const reader = { host: 'roche.wd3.myworkdayjobs.com', site: 'roche-ext' };
+  const data = { jobPostings: [
+    { title: 'Senior Software Engineer', externalPath: '/job/Rotkreuz/Senior-Software-Engineer_202511-1', locationsText: 'Rotkreuz' },
+    { title: 'Software Engineer', externalPath: '/job/Basel/Software-Engineer_202511-2', locationsText: '2 Locations' },
+    { title: 'Software Engineer', externalPath: '/job/Basel/Software-Engineer_202511-3', locationsText: 'Basel' },
+  ] };
+  const jobs = gs.parseWorkday(data, reader, true);
+  assert.equal(jobs[0].url, 'https://roche.wd3.myworkdayjobs.com/en-US/roche-ext/job/Rotkreuz/Senior-Software-Engineer_202511-1');
+  assert.equal(jobs[1].location, '');
+  const profile = { roles: 'software', locations: 'Zug' };
+  assert.deepEqual(jobs.map((j) => gs.fits(j, profile, false)), [true, true, false]);
+  // Without the filter, a job at "2 Locations" is not known to be Swiss.
+  assert.equal(gs.fits(gs.parseWorkday(data, reader, false)[1], profile, false), false);
+});
