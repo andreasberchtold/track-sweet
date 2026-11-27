@@ -293,3 +293,20 @@ test('whyNot says why a job was left out', () => {
   assert.equal(gs.whyNot({ title: 'Software Engineer', location: 'Basel' }, profile, false), 'not in your locations');
   assert.equal(gs.whyNot({ title: 'Software Engineer', location: 'Munich, Germany' }, profile, false), 'not in Switzerland');
 });
+
+test('workdaySwissFacet takes the Swiss towns when a site has no country filter', () => {
+  const data = {
+    facets: [
+      { facetParameter: 'jobFamilyGroup', values: [{ descriptor: 'Basel Operations', id: 'fam' }] },
+      { facetParameter: 'locations', values: [
+        { descriptor: 'Rotkreuz', id: 'rk' },
+        { descriptor: 'Basel', id: 'bs' },
+        { descriptor: 'Welwyn', id: 'uk' },
+        { descriptor: 'Sant Cugat del Vallès', id: 'es' },
+        { descriptor: 'Remote', id: 'rem' },
+      ] },
+    ],
+  };
+  assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(data))), { locations: ['rk', 'bs'] });
+  assert.deepEqual([...gs.workdayFacetNames(data)], ['jobFamilyGroup (Basel Operations)', 'locations (Rotkreuz, Basel, Welwyn, ...)']);
+});

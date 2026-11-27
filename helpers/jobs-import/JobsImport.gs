@@ -120,7 +120,39 @@ function workdaySwissFacet(data) {
       walk(f.values);
     });
   })(data && data.facets);
+  if (found) return found;
+  // No country filter (Roche, Swisscom, ...): take the site's Swiss towns
+  // from its location filter instead, for example "Rotkreuz" and "Basel".
+  (function walk(list) {
+    (list || []).forEach(function (f) {
+      if (found || !f) return;
+      var towns = /location/i.test(f.facetParameter || '') ? (f.values || []).filter(function (v) {
+        var where = placeKey(v && v.descriptor);
+        return v && v.id && !v.values && where && where !== 'remote' && isSwiss(where);
+      }) : [];
+      if (towns.length) {
+        found = {};
+        found[f.facetParameter] = towns.map(function (v) { return v.id; });
+        return;
+      }
+      walk(f.values);
+    });
+  })(data && data.facets);
   return found;
+}
+
+/** The filter names a Workday answer offers, for checkImport's log. */
+function workdayFacetNames(data) {
+  var names = [];
+  (function walk(list) {
+    (list || []).forEach(function (f) {
+      if (f && f.facetParameter && f.values) {
+        names.push(f.facetParameter + ' (' + f.values.slice(0, 3).map(function (v) { return v.descriptor; }).join(', ') + (f.values.length > 3 ? ', ...' : '') + ')');
+        walk(f.values);
+      }
+    });
+  })(data && data.facets);
+  return names;
 }
 
 /** Workday results. With `swiss`, "2 Locations" counts as an unknown place in Switzerland. */
@@ -192,7 +224,7 @@ function parseNovartis(html, base) {
     var url = absolute(decodeEntities(m[1]), base);
     if (seen[url]) return;
     seen[url] = true;
-    var rowText = text(row.replace(/^[^>]*>/, ''));
+    var rowText = text(row.replace(/^[^>]*>/, '').split(/<\/tr>/i)[0]);
     var title = text(m[2]);
     out.push({ title: title, url: url, location: rowText.replace(title, '').trim() });
   });
@@ -493,6 +525,7 @@ function fetchSource_(source, profile) {
   } else if (reader.type === 'workday') {
     var api = 'https://' + reader.host + '/wday/cxs/' + reader.tenant + '/' + reader.site + '/jobs';
     var facets = null;
+    var facetNames = [];
     var asked = false;
     terms.forEach(function (term) {
       var first = postJson_(api, workdayBody(term, 0, facets));
@@ -500,6 +533,7 @@ function fetchSource_(source, profile) {
         // The first answer names the site's filters; look for Switzerland and search again with it.
         asked = true;
         facets = workdaySwissFacet(first);
+        if (!facets) facetNames = workdayFacetNames(first);
         if (facets) first = postJson_(api, workdayBody(term, 0, facets));
       }
       jobs = jobs.concat(parseWorkday(first, reader, Boolean(facets)));
@@ -509,11 +543,13 @@ function fetchSource_(source, profile) {
       }
       Utilities.sleep(1500);
     });
-    swissFilter = facets || 'none found';
+    swissFilter = facets || 'none found; filters offered: ' + (facetNames.join('; ') || 'none');
   } else if (reader.type === 'csb') {
     terms.forEach(function (term) {
       var url = reader.base + '/search/?q=' + encodeURIComponent(term) + '&sortColumn=referencedate&sortDirection=desc';
-      jobs = jobs.concat(parseCsb(getText_(url), reader.base));
+      // Ask for jobs in Switzerland; if the site ignores or rejects that, take the worldwide list.
+      var swissOnly = parseCsb(getText_(url + '&locationsearch=Switzerland'), reader.base);
+      jobs = jobs.concat(swissOnly.length ? swissOnly : parseCsb(getText_(url), reader.base));
       Utilities.sleep(1500);
     });
   } else if (reader.type === 'phenom') {
