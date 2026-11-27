@@ -38,7 +38,8 @@ export function readerFor(url) {
   if (/^https:\/\/(?:job-boards|boards)(\.eu)?\.greenhouse\.io\/[A-Za-z0-9_-]+/.test(u)) return 'greenhouse';
   if (/^https:\/\/[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com\/(?:[a-z]{2}-[A-Z]{2}\/)?[A-Za-z0-9_-]+/.test(u)) return 'workday';
   if (/^https:\/\/(careers\.swissre\.com|job\.schindler\.com)/.test(u)) return 'csb';
-  if (/^https:\/\/(careers\.roche\.com|careers\.siemens-healthineers\.com)\//.test(u)) return 'phenom';
+  if (/^https:\/\/careers\.roche\.com\//.test(u)) return 'workday';
+  if (/^https:\/\/careers\.siemens-healthineers\.com\//.test(u)) return 'phenom';
   if (/^https:\/\/www\.novartis\.com\/careers/.test(u)) return 'novartis';
   if (/^https:\/\/(www\.)?talendo\.ch\//.test(u) || /^https:\/\/jobs\.nzz\.ch\//.test(u)) return 'links';
   return null;

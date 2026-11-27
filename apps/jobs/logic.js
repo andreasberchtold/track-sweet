@@ -350,6 +350,8 @@ export function importRuns(settings = {}) {
 /** One line per source of a run: "Swisscom: 3 new of 5" or "Roche: failed (HTTP 403)". */
 export function runLines(run) {
   return (run.sources ?? []).map((s) =>
-    s.error ? `${s.name}: failed (${s.error})` : `${s.name}: ${s.added ?? 0} new of ${s.found ?? 0}`,
+    s.error
+      ? `${s.name}: failed (${s.error})`
+      : `${s.name}: ${s.added ?? 0} new of ${s.found ?? 0}` + (s.read != null ? ` matching (${s.read} read)` : ''),
   );
 }

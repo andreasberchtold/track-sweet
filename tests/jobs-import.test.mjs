@@ -116,7 +116,7 @@ test('autoSources takes followed automatic sources with a reader', () => {
 });
 
 test('readerFor knows Phenom sites and Novartis', () => {
-  assert.equal(gs.readerFor('https://careers.roche.com/global/en').base, 'https://careers.roche.com/global/en');
+  assert.equal(gs.readerFor('https://careers.siemens-healthineers.com/global/en').base, 'https://careers.siemens-healthineers.com/global/en');
   assert.equal(gs.readerFor('https://careers.siemens-healthineers.com/global/en').type, 'phenom');
   assert.equal(gs.readerFor('https://www.novartis.com/careers/career-search').type, 'novartis');
   assert.equal(gs.readerFor('https://onehealthineers.wd3.myworkdayjobs.com/SHSJB').site, 'SHSJB');
@@ -278,4 +278,18 @@ test('Workday jobs filtered to Switzerland fit, also with several locations', ()
   assert.deepEqual(jobs.map((j) => gs.fits(j, profile, false)), [true, true, false]);
   // Without the filter, a job at "2 Locations" is not known to be Swiss.
   assert.equal(gs.fits(gs.parseWorkday(data, reader, false)[1], profile, false), false);
+});
+
+test('an old careers.roche.com link is read from Roche\'s Workday site', () => {
+  assert.equal(gs.readerFor('https://careers.roche.com/global/en').site, 'roche-ext');
+  assert.equal(gs.readerFor('https://careers.siemens-healthineers.com/global/en').type, 'phenom');
+});
+
+test('whyNot says why a job was left out', () => {
+  const profile = { roles: 'software', avoid: 'sap', locations: 'Zug' };
+  assert.equal(gs.whyNot({ title: 'Software Engineer', location: 'Rotkreuz' }, profile, false), '');
+  assert.equal(gs.whyNot({ title: 'Lab Technician', location: 'Rotkreuz' }, profile, false), 'title has none of the keywords');
+  assert.equal(gs.whyNot({ title: 'SAP Software Lead', location: 'Rotkreuz' }, profile, false), 'title contains "sap"');
+  assert.equal(gs.whyNot({ title: 'Software Engineer', location: 'Basel' }, profile, false), 'not in your locations');
+  assert.equal(gs.whyNot({ title: 'Software Engineer', location: 'Munich, Germany' }, profile, false), 'not in Switzerland');
 });
