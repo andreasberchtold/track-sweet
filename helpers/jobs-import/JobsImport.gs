@@ -104,7 +104,7 @@ function workdayBody(term, offset, facets) {
  * Big companies list thousands of jobs worldwide; without this filter the
  * Swiss ones are rarely among the first results.
  */
-function workdaySwissFacet(data) {
+function workdaySwissFacet(data, wanted) {
   var found = null;
   (function walk(list) {
     (list || []).forEach(function (f) {
@@ -130,6 +130,12 @@ function workdaySwissFacet(data) {
         var where = placeKey(v && v.descriptor);
         return v && v.id && !v.values && where && where !== 'remote' && isSwiss(where);
       }) : [];
+      // Only the towns in my locations, when the site has any of them: jobs
+      // listed at "2 Locations" then include at least one of mine.
+      var mine = towns.filter(function (v) {
+        return (wanted || []).some(function (p) { return placeMatches(placeKey(v.descriptor), p); });
+      });
+      if (mine.length) towns = mine;
       if (towns.length) {
         found = {};
         found[f.facetParameter] = towns.map(function (v) { return v.id; });
@@ -532,7 +538,7 @@ function fetchSource_(source, profile) {
       if (!asked) {
         // The first answer names the site's filters; look for Switzerland and search again with it.
         asked = true;
-        facets = workdaySwissFacet(first);
+        facets = workdaySwissFacet(first, splitList(profile && profile.locations));
         if (!facets) facetNames = workdayFacetNames(first);
         if (facets) first = postJson_(api, workdayBody(term, 0, facets));
       }

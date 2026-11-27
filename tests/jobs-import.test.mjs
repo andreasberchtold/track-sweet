@@ -310,3 +310,11 @@ test('workdaySwissFacet takes the Swiss towns when a site has no country filter'
   assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(data))), { locations: ['rk', 'bs'] });
   assert.deepEqual([...gs.workdayFacetNames(data)], ['jobFamilyGroup (Basel Operations)', 'locations (Rotkreuz, Basel, Welwyn, ...)']);
 });
+
+test('workdaySwissFacet prefers the towns in my locations', () => {
+  const data = { facets: [{ facetParameter: 'locations', values: [
+    { descriptor: 'Rotkreuz', id: 'rk' }, { descriptor: 'Basel', id: 'bs' }, { descriptor: 'Kaiseraugst', id: 'ka' },
+  ] }] };
+  assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(data, ['zug', 'zurich']))), { locations: ['rk'] });
+  assert.deepEqual(JSON.parse(JSON.stringify(gs.workdaySwissFacet(data, ['bern']))), { locations: ['rk', 'bs', 'ka'] }, 'none of mine: all Swiss towns');
+});
