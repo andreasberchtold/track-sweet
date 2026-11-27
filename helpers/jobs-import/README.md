@@ -49,6 +49,12 @@ umlauts, so "Zurich" matches "Zürich" and "Zuerich".
    source returned; the app's source list shows it too, and "Sources",
    "Import log" keeps the last 200 runs of both scripts.
 
+If a source brings no jobs although the site has fitting ones, run
+`checkImport` (pick it in the function list next to "Run"). It changes
+nothing, and logs per source how many jobs it read, how many fit, and
+for the others why not (keywords, "Not interested in", location), with
+examples.
+
 To update the script later, paste the new `JobsImport.gs` over the old one.
 To stop it: Triggers (clock icon), delete the trigger.
 

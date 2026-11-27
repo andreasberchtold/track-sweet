@@ -73,6 +73,8 @@ function readerFor(url) {
   if ((m = u.match(/^https:\/\/(careers\.swissre\.com|job\.schindler\.com)/))) {
     return { type: 'csb', base: 'https://' + m[1] };
   }
+  // careers.roche.com loads its jobs in the browser; the same jobs are on Roche's Workday site.
+  if (/^https:\/\/careers\.roche\.com\//.test(u)) return { type: 'workday', host: 'roche.wd3.myworkdayjobs.com', tenant: 'roche', site: 'roche-ext' };
   if ((m = u.match(/^https:\/\/(careers\.roche\.com|careers\.siemens-healthineers\.com)\//))) {
     return { type: 'phenom', base: 'https://' + m[1] + '/global/en' };
   }
@@ -302,19 +304,25 @@ function isSwiss(where) {
  * where a missing location is fine.
  */
 function fits(job, profile, swiss) {
+  return !whyNot(job, profile, swiss);
+}
+
+/** Why a found job does not fit the profile ('' when it fits). Shown by checkImport. */
+function whyNot(job, profile, swiss) {
   var title = (job.title || '').toLowerCase();
-  if (!title) return false;
+  if (!title) return 'no title';
   var terms = searchTerms(profile);
-  if (!terms.some(function (t) { return title.indexOf(t) !== -1; })) return false;
+  if (!terms.some(function (t) { return title.indexOf(t) !== -1; })) return 'title has none of the keywords';
   var avoid = splitList(profile && profile.avoid);
-  if (avoid.some(function (t) { return title.indexOf(t) !== -1; })) return false;
+  var bad = avoid.filter(function (t) { return title.indexOf(t) !== -1; })[0];
+  if (bad) return 'title contains "' + bad + '"';
   var where = placeKey(job.location);
   swiss = swiss || job.swiss;
-  if (!where) return Boolean(swiss);
-  if (!swiss && !isSwiss(where)) return false;
+  if (!where) return swiss ? '' : 'no location given';
+  if (!swiss && !isSwiss(where)) return 'not in Switzerland';
   var wanted = splitList(profile && profile.locations);
-  if (!wanted.length) return true;
-  return wanted.some(function (p) { return placeMatches(where, p); });
+  if (!wanted.length) return '';
+  return wanted.some(function (p) { return placeMatches(where, p); }) ? '' : 'not in your locations';
 }
 
 function cleanUrl(url) {
@@ -437,11 +445,13 @@ function runImport() {
   var results = [];
   var found = {};
   autoSources(doc).forEach(function (source) {
-    var result = { id: source.id, name: source.name, found: 0, added: 0, error: '' };
+    var result = { id: source.id, name: source.name, read: 0, found: 0, added: 0, error: '' };
     try {
-      var jobs = fetchSource_(source, profile).filter(function (j) {
+      var all = fetchSource_(source, profile);
+      var jobs = all.filter(function (j) {
         return fits(j, profile, readerFor(source.url).swiss);
       });
+      result.read = all.length;
       result.found = jobs.length;
       found[source.id] = jobs;
     } catch (err) {
@@ -466,26 +476,29 @@ function runImport() {
     kind: 'sources',
     added: ids.length,
     jobIds: ids,
-    sources: results.map(function (r) { return { name: r.name, found: r.found, added: r.added, error: r.error }; }),
+    sources: results.map(function (r) { return { name: r.name, read: r.read, found: r.found, added: r.added, error: r.error }; }),
   });
   fresh.savedAt = now;
   file.setContent(JSON.stringify(fresh, null, 2));
-  Logger.log(results.map(function (r) { return r.name + ': ' + (r.error ? 'error ' + r.error : r.added + ' new of ' + r.found); }).join('\n'));
+  Logger.log(results.map(function (r) { return r.name + ': ' + (r.error ? 'error ' + r.error : r.added + ' new of ' + r.found + ' matching (' + r.read + ' read)'); }).join('\n'));
 }
 
 function fetchSource_(source, profile) {
   var reader = readerFor(source.url);
   var terms = searchTerms(profile).slice(0, 4);
   var jobs = [];
+  var swissFilter = null;
   if (reader.type === 'greenhouse') {
     jobs = parseGreenhouse(getJson_(reader.api));
   } else if (reader.type === 'workday') {
     var api = 'https://' + reader.host + '/wday/cxs/' + reader.tenant + '/' + reader.site + '/jobs';
     var facets = null;
+    var asked = false;
     terms.forEach(function (term) {
       var first = postJson_(api, workdayBody(term, 0, facets));
-      if (!facets) {
+      if (!asked) {
         // The first answer names the site's filters; look for Switzerland and search again with it.
+        asked = true;
         facets = workdaySwissFacet(first);
         if (facets) first = postJson_(api, workdayBody(term, 0, facets));
       }
@@ -496,6 +509,7 @@ function fetchSource_(source, profile) {
       }
       Utilities.sleep(1500);
     });
+    swissFilter = facets || 'none found';
   } else if (reader.type === 'csb') {
     terms.forEach(function (term) {
       var url = reader.base + '/search/?q=' + encodeURIComponent(term) + '&sortColumn=referencedate&sortDirection=desc';
@@ -519,10 +533,49 @@ function fetchSource_(source, profile) {
     jobs = parseLinks(getText_(page), page);
   }
   var seen = {};
-  return jobs.filter(function (j) {
+  var unique = jobs.filter(function (j) {
     if (seen[j.url]) return false;
     seen[j.url] = true;
     return true;
+  });
+  unique.swissFilter = swissFilter;
+  return unique;
+}
+
+/**
+ * A dry run for finding out why a source brings no jobs: reads every
+ * automatic source (or only those whose name contains `only`) and logs what
+ * came back and why jobs were left out. Changes nothing in jobs.json.
+ * Run it from the editor and look at the log below.
+ */
+function checkImport(only) {
+  var doc = JSON.parse(findFile_().getBlob().getDataAsString());
+  var profile = (doc.settings && doc.settings.profile) || {};
+  var filter = typeof only === 'string' ? only.toLowerCase() : '';
+  Logger.log('Keywords: ' + searchTerms(profile).join(', ') + ' (searched: ' + searchTerms(profile).slice(0, 4).join(', ') + ')');
+  Logger.log('Not interested in: ' + (splitList(profile.avoid).join(', ') || '-') + '. Locations: ' + (splitList(profile.locations).join(', ') || 'all of Switzerland'));
+  autoSources(doc).forEach(function (source) {
+    if (filter && source.name.toLowerCase().indexOf(filter) === -1) return;
+    var reader = readerFor(source.url);
+    var lines = [source.name + ' (' + reader.type + ', ' + source.url + ')'];
+    try {
+      var all = fetchSource_(source, profile);
+      var reasons = {};
+      var fitting = 0;
+      all.forEach(function (j) {
+        var why = whyNot(j, profile, reader.swiss);
+        if (!why) fitting++;
+        (reasons[why || 'fits'] = reasons[why || 'fits'] || []).push(j);
+      });
+      lines.push('  read ' + all.length + ' jobs, ' + fitting + ' fit' + (all.swissFilter ? '; Switzerland filter: ' + JSON.stringify(all.swissFilter) : ''));
+      Object.keys(reasons).forEach(function (why) {
+        lines.push('  ' + why + ' (' + reasons[why].length + '):');
+        reasons[why].slice(0, 5).forEach(function (j) { lines.push('    ' + j.title + ' | ' + (j.location || '-')); });
+      });
+    } catch (err) {
+      lines.push('  failed: ' + ((err && err.message) || err));
+    }
+    Logger.log(lines.join('\n'));
   });
 }
 

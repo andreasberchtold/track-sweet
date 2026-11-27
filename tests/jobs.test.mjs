@@ -242,3 +242,7 @@ test('importRuns falls back to the last run from before the history existed', ()
   assert.equal(runs[0].added, 2);
   assert.deepEqual(runLines(runs[0]), ['Roche: 2 new of 4', 'UBS: failed (HTTP 403)']);
 });
+
+test('runLines shows how many jobs a source read when known', () => {
+  assert.deepEqual(runLines({ sources: [{ name: 'Roche', read: 40, found: 2, added: 1 }] }), ['Roche: 1 new of 2 matching (40 read)']);
+});
